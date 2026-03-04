@@ -1,6 +1,24 @@
 ![](./gif.gif)
 
 
+
+# AVANT TOUT
+
+Va falloir faire un croisement de données.
+C'est à dire trouver des données open source à propos de la météo autour d'Ajaccio, Bastia, Biarritz, Nantes, Pise.
+
+Faire un script permettant d'enrichir les données en les croisant.
+
+A l'aide de ces données enrichies, faire un benchmark de features, afin de cerner les plus impactantes pour la prédiction de fin d'orage.
+
+
+
+
+
+
+
+
+
 # Benchmark — Prédiction de fin d'orage (Étape 1)
 
 ## Objectif
