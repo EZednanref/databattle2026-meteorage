@@ -1,77 +1,31 @@
 ![](./gif.gif)
 
-# ⛈️ Thunderstorm End Prediction Model
 
-Predicts the probability that a thunderstorm has ended near an airport, updated after every lightning strike.
+Antoine : 
 
-## Project Structure
+On va tenter une approche "probabilistic nowcasting" pour faire du forecasting de séries temporelles.
 
-```
-storm_model/
-├── config.py               # All hyperparameters and settings
-├── data_loader.py          # Data loading and validation
-├── features.py             # Feature engineering pipeline
-├── model_lgbm.py           # LightGBM model
-├── model_lstm.py           # LSTM model (PyTorch)
-├── model_ensemble.py       # Ensemble + probability calibration
-├── train.py                # Full training pipeline
-├── evaluate.py             # Evaluation metrics and plots
-├── predict.py              # Real-time inference
-├── requirements.txt        # Dependencies
-└── README.md
-```
+### Étape 1 — Borne supérieure (classification binaire)
+"L'orage sera-t-il terminé avant un temps T ?"
+  Modèles :
 
-**2026-03-04 11:44:45,221 [INFO] **main** — [Biarritz] Test results — ROC-AUC: 0.877 | AvgPrecision: 0.301 | Brier: 0.0487 | Mean CI width: 0.695
-2026-03-04 11:42:31,423 [INFO] **main** — [Pise] Test results — ROC-AUC: 0.856 | AvgPrecision: 0.071 | Brier: 0.0196 | Mean CI width: 0.227
-2026-03-04 11:37:21,237 [INFO] **main** — [Nantes] Test results — ROC-AUC: 0.784 | AvgPrecision: 0.184 | Brier: 0.0331 | Mean CI width: 0.323
-2026-03-04 11:36:01,208 [INFO] **main** — [Ajaccio] Test results — ROC-AUC: 0.898 | AvgPrecision: 0.327 | Brier: 0.0504 | Mean CI width: 0.357
-2026-03-04 11:33:31,478 [INFO] **main** — [Bastia] Test results — ROC-AUC: 0.914 | AvgPrecision: 0.241 | Brier: 0.0235 | Mean CI width: 0.184
-**
+  - XGBoost / LightGBM — très utilisés sur données tabulaires météo, robustes, interprétables via SHAP
+  - LSTM / GRU — si tu veux capturer la dynamique temporelle de la séquence d'éclairs (amplitude, distance, fréquence)
+  - Survival Analysis (Cox, Weibull AFT) — particulièrement adapté : modélise le temps jusqu'à un événement (fin d'orage), gère nativement l'incertitude et les données censurées
 
-**Bastia & Ajaccio** are our best models — high ROC-AUC, well-calibrated, reasonable CI width.
+### Étape 2 — Distribution temporelle (régression probabiliste)
+"À quelle heure la probabilité que l'orage se termine est la plus haute ?"
 
-**Biarritz** has a CI width of 0.695 which is very wide — the model is uncertain on almost every prediction. This could mean the 2020 validation year was unusual for Biarritz (atypical storm season).
+  - Quantile Regression (XGBoost quantile loss) — donne directement des intervalles de confiance
+  - Bayesian Neural Networks / MC Dropout — produisent une distribution de sortie
+  - Conformalized Quantile Regression (CQR) — état de l'art pour les intervalles de prédiction calibrés, très utilisé récemment
+  - NGBoost (Duan et al., 2019) — gradient boosting qui sort directement une gaussienne paramétrique
 
-**Pise** has a very low Average Precision of 0.071 — barely better than random. This is likely the recording system issue mentioned in the data description (different system in 2016). Even though we excluded 2016 IC strikes, the overall data quality for Pise may be lower.
 
-**Nantes** at 0.784 ROC-AUC is the weakest overall. With only 4,378 strikes total it has the least training data of all airports — the model simply hasn't seen enough storms to generalize well.
+### Papiers de référence
 
-**The good news** is that all 5 airports are well above random on ROC-AUC, and all Brier scores are well below 0.10, meaning probability outputs are trustworthy for operational use.
-
-## Quick Start
-
-```bash
-pip install -r requirements.txt
-
-# Train the full model
-python train.py --data_path data/lightning.parquet --airport Bron
-
-# Evaluate on test set
-python evaluate.py --model_path models/ensemble_Bron.pkl
-
-# Real-time prediction
-python predict.py --model_path models/ensemble_Bron.pkl --alert_id 42
-```
-
-## Output Format
-
-```
-Time (UTC) | P(ended) | 90% CI        | Advisory
------------|----------|---------------|---------------------------
-12:00      |   80%    | [73% – 87%]   | 🟡 Storm possibly ending
-12:10      |   94%    | [89% – 97%]   | 🟢 Storm likely ended
-```
-
-## Airports Supported
-
-* Bastia (BIA): 42.5527°N, 9.4837°E
-* Ajaccio (AJA): 41.9236°N, 8.8029°E
-* Nantes (NTE): 47.1532°N, -1.6107°E
-* Pisa (PSA): 43.695°N, 10.399°E
-* Biarritz (BIQ): 43.4683°N, -1.524°E
-
-## Notes
-
-- Pisa 2016 intra-cloud data is excluded by default (different recording system)
-- All features use only backward-looking windows (no data leakage)
-- Train/test split is temporal (train ≤ 2021, val = 2022, test ≥ 2023)
+- Probabilistic thunderstorm nowcasting using deep learning (Shi et al., 2017 — ConvLSTM)
+- A machine learning approach to lightning prediction (Mostajabi et al., 2019, Nature npj Climate)
+- Conformalized Quantile Regression (Romano et al., NeurIPS 2019)
+- NGBoost: Natural Gradient Boosting (Duan et al., ICML 2020)
+- Survival analysis for storm duration
