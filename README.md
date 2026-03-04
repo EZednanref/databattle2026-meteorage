@@ -1,3 +1,5 @@
+![](./gif.gif)
+
 # ⛈️ Thunderstorm End Prediction Model
 
 Predicts the probability that a thunderstorm has ended near an airport, updated after every lightning strike.
