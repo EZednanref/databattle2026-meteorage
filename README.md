@@ -11,8 +11,11 @@ Faire un script permettant d'enrichir les données en les croisant.
 
 A l'aide de ces données enrichies, faire un benchmark de features, afin de cerner les plus impactantes pour la prédiction de fin d'orage.
 
+Sources possibles : 
 
-
+- https://meteo.data.gouv.fr/datasets?category=climatologique-base
+- https://meteo.data.gouv.fr/datasets?category=climatologique-changement-climatique
+- https://meteo.data.gouv.fr/datasets?category=observations
 
 
 
