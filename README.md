@@ -1,31 +1,143 @@
 ![](./gif.gif)
 
 
-Antoine : 
+# Benchmark — Prédiction de fin d'orage (Étape 1)
 
-On va tenter une approche "probabilistic nowcasting" pour faire du forecasting de séries temporelles.
+## Objectif
 
-### Étape 1 — Borne supérieure (classification binaire)
-"L'orage sera-t-il terminé avant un temps T ?"
-  Modèles :
+À partir d'un historique d'éclairs sur un aéroport, prédire **la borne supérieure de fin d'orage** (ex: "l'orage sera terminé avant 17h30 avec 95% de confiance").
 
-  - XGBoost / LightGBM — très utilisés sur données tabulaires météo, robustes, interprétables via SHAP
-  - LSTM / GRU — si tu veux capturer la dynamique temporelle de la séquence d'éclairs (amplitude, distance, fréquence)
-  - Survival Analysis (Cox, Weibull AFT) — particulièrement adapté : modélise le temps jusqu'à un événement (fin d'orage), gère nativement l'incertitude et les données censurées
+Deux formulations sont benchmarkées en parallèle :
 
-### Étape 2 — Distribution temporelle (régression probabiliste)
-"À quelle heure la probabilité que l'orage se termine est la plus haute ?"
+| Formulation | Sortie | Modèles |
+|---|---|---|
+| **Binaire** | "L'orage se termine-t-il dans les X prochaines minutes ?" | LR, XGBoost, LightGBM, LSTM |
+| **Survival** | "Quelle est la probabilité que l'orage dure encore T minutes ?" | Weibull AFT, Cox PH |
 
-  - Quantile Regression (XGBoost quantile loss) — donne directement des intervalles de confiance
-  - Bayesian Neural Networks / MC Dropout — produisent une distribution de sortie
-  - Conformalized Quantile Regression (CQR) — état de l'art pour les intervalles de prédiction calibrés, très utilisé récemment
-  - NGBoost (Duan et al., 2019) — gradient boosting qui sort directement une gaussienne paramétrique
+---
 
+## Définition des labels
 
-### Papiers de référence
+**Règle de segmentation :** un orage = séquence d'éclairs sur un aéroport sans gap > 30 min.
 
-- Probabilistic thunderstorm nowcasting using deep learning (Shi et al., 2017 — ConvLSTM)
-- A machine learning approach to lightning prediction (Mostajabi et al., 2019, Nature npj Climate)
-- Conformalized Quantile Regression (Romano et al., NeurIPS 2019)
-- NGBoost: Natural Gradient Boosting (Duan et al., ICML 2020)
-- Survival analysis for storm duration
+```
+storm_id  start_time  end_time  duration_min  [features agrégées]
+```
+
+**Label binaire** (à paramétrer) : `1` si `duration_from_now <= T`, `0` sinon.  
+**Label survival** : `(duration_min, event=1)` — l'événement est toujours observé ici.
+
+---
+
+## Feature Engineering
+
+Calculées par **fenêtre glissante** sur les N derniers éclairs de l'orage en cours :
+
+### Temporelles
+- `time_since_last_lightning` — signal clé pour la fin
+- `inter_lightning_gap_mean / max` sur fenêtre 5, 10, 20 éclairs
+- `lightning_rate_trend` — pente de la fréquence (décélération = signal fort)
+- `storm_age_min` — durée depuis le premier éclair
+
+### Spatiales
+- `dist_mean / dist_trend` — éloignement progressif du centre ?
+- `azimuth_std` — dispersion angulaire
+- `maxis_mean / trend` — évolution de la taille de la cellule orageuse
+
+### Physiques
+- `amplitude_mean / std / trend` — intensité et tendance
+- `icloud_ratio` — proportion de foudre nuage-nuage (↑ en fin d'orage)
+- `cloud_ground_ratio` — proportion nuage-sol
+
+---
+
+## Structure du projet
+
+```
+storm_end_prediction/
+│
+├── data/
+│   ├── raw/data.csv
+│   └── processed/
+│       ├── storms.csv          # segments d'orages labelisés
+│       └── features.csv        # features par fenêtre glissante
+│
+├── src/
+│   ├── preprocessing/
+│   │   ├── segment_storms.py   # règle 30 min → storm_id
+│   │   └── build_features.py   # fenêtres glissantes → feature matrix
+│   │
+│   ├── models/
+│   │   ├── baseline_lr.py
+│   │   ├── xgboost_model.py
+│   │   ├── lightgbm_model.py
+│   │   ├── lstm_model.py
+│   │   └── survival_model.py   # lifelines : Weibull AFT + Cox PH
+│   │
+│   ├── evaluation/
+│   │   ├── metrics.py          # AUC, Brier score, calibration curve
+│   │   └── benchmark.py        # runner comparatif
+│   │
+│   └── config.py               # GAP_MINUTES=30, WINDOW_SIZES, T_horizon, etc.
+│
+├── notebooks/
+│   └── 01_EDA.ipynb
+│
+└── README.md
+```
+
+---
+
+## Métriques d'évaluation
+
+### Modèles binaires / classifieurs
+- **AUC-ROC** — discrimination générale
+- **Brier Score** — qualité probabiliste (calibration)
+- **Calibration curve** — essentiel si la sortie est une probabilité utilisée en prod
+- **Recall à 95%** — métrique métier : "couvrir 95% des fins d'orage réelles"
+
+### Modèles survival
+- **C-index (Concordance)** — équivalent AUC pour la survival
+- **Integrated Brier Score**
+- **Survival curves** à t=30, 60, 90 min
+
+---
+
+## Split temporel
+
+> Ne pas faire de split aléatoire — risque de data leakage temporel.
+
+```
+Train : orages avant date D
+Val   : orages entre D et D+30j
+Test  : orages après D+30j
+```
+
+Ou **Walk-Forward Validation** si peu de données.
+
+---
+
+## Dépendances probables
+
+```
+pandas, numpy
+scikit-learn
+xgboost, lightgbm
+torch (LSTM)
+lifelines (survival)
+matplotlib, shap
+```
+
+---
+
+## Décision sur la formulation
+
+Recommandation : **commencer par la formulation survival** (Weibull AFT).
+
+- Modélise naturellement "le temps jusqu'à la fin"
+- Gère les orages encore en cours (données censurées) si besoin
+- Donne directement un percentile 95% → borne supérieure pour l'étape 2
+- Plus interprétable que LSTM pour un premier benchmark
+
+La formulation binaire reste utile comme **baseline rapide** et pour comparer la calibration.
+
