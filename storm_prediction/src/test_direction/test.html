@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Lightning Tracker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0c0f; --panel: #111418; --border: #1e2530;
+    --accent: #00e5ff; --accent2: #ff4d6d; --accent3: #b2ff59;
+    --text: #c8d6e5; --muted: #4a5568;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Space Mono', monospace;
+    height: 100vh;
+    display: grid;
+    grid-template-rows: 56px 1fr 260px;
+    overflow: hidden;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 20px;
+    padding: 0 24px; background: var(--panel);
+    position: relative; z-index: 1000;
+  }
+  header h1 {
+    font-family: 'Syne', sans-serif; font-weight: 800;
+    font-size: 18px; letter-spacing: 0.08em;
+    color: var(--accent); text-transform: uppercase;
+  }
+  .tag { font-size: 10px; padding: 2px 8px; border: 1px solid var(--border); color: var(--muted); letter-spacing: 0.1em; text-transform: uppercase; }
+  .header-right { margin-left: auto; display: flex; align-items: center; gap: 12px; }
+  #stats-bar { display: flex; gap: 20px; font-size: 11px; }
+  .stat { color: var(--muted); }
+  .stat span { color: var(--accent); font-weight: 700; }
+
+  #upload-overlay {
+    position: fixed; inset: 0; background: rgba(10,12,15,0.97);
+    z-index: 9999; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 32px;
+  }
+  #upload-overlay h2 { font-family: 'Syne', sans-serif; font-weight: 800; font-size: 32px; color: var(--accent); letter-spacing: 0.1em; text-transform: uppercase; }
+  .upload-zone { border: 1px dashed var(--accent); padding: 48px 64px; text-align: center; cursor: pointer; transition: background 0.2s; position: relative; }
+  .upload-zone:hover { background: rgba(0,229,255,0.05); }
+  .upload-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-zone p { font-size: 13px; color: var(--muted); margin-top: 8px; }
+  .upload-zone strong { font-size: 16px; color: var(--text); }
+  .csv-format { font-size: 11px; color: var(--muted); background: var(--panel); border: 1px solid var(--border); padding: 16px 24px; line-height: 2; }
+  .csv-format code { color: var(--accent3); }
+  .demo-btn { background: transparent; border: 1px solid var(--accent2); color: var(--accent2); font-family: 'Space Mono', monospace; font-size: 12px; padding: 10px 24px; cursor: pointer; letter-spacing: 0.08em; text-transform: uppercase; transition: background 0.2s; }
+  .demo-btn:hover { background: rgba(255,77,109,0.1); }
+
+  #map { width: 100%; height: 100%; background: var(--bg); }
+  .leaflet-container { background: #0d1117; }
+
+  #chart-panel { border-top: 1px solid var(--border); background: var(--panel); display: grid; grid-template-columns: 1fr 1fr; padding: 16px 24px; }
+  .chart-title { font-size: 10px; color: var(--muted); letter-spacing: 0.15em; text-transform: uppercase; margin-bottom: 8px; font-family: 'Syne', sans-serif; }
+  .chart-wrap { padding: 0 12px; height: 200px; }
+  .chart-wrap:first-child { border-right: 1px solid var(--border); }
+
+  .custom-tooltip { background: var(--panel); border: 1px solid var(--accent); padding: 10px 14px; font-family: 'Space Mono', monospace; font-size: 11px; line-height: 1.8; pointer-events: none; }
+  .custom-tooltip b { color: var(--accent); }
+
+  #layer-toggle { position: absolute; top: 70px; right: 12px; z-index: 1000; display: flex; flex-direction: column; gap: 6px; }
+  .toggle-btn { background: var(--panel); border: 1px solid var(--border); color: var(--muted); font-family: 'Space Mono', monospace; font-size: 10px; padding: 5px 10px; cursor: pointer; letter-spacing: 0.08em; text-transform: uppercase; transition: all 0.15s; }
+  .toggle-btn.active { border-color: var(--accent); color: var(--accent); }
+</style>
+</head>
+<body>
+
+<div id="upload-overlay">
+  <h2>⚡ LIGHTNING TRACKER</h2>
+  <div class="upload-zone">
+    <input type="file" id="csv-input" accept=".csv">
+    <strong>Drop CSV file here</strong>
+    <p>or click to browse</p>
+  </div>
+  <div class="csv-format">
+    Format attendu : <code>timestamp</code> , <code>latitude</code> , <code>longitude</code> , <code>error_km</code><br>
+    Groupes de <code>1 min</code> → centroïde → cercle de direction entre groupes consécutifs
+  </div>
+  <button class="demo-btn" id="demo-btn">▶ Charger données de démo</button>
+</div>
+
+<header>
+  <h1>⚡ Lightning Tracker</h1>
+  <span class="tag">Storm Direction</span>
+  <div class="header-right">
+    <div id="stats-bar">
+      <div class="stat">Groupes : <span id="s-lots">—</span></div>
+      <div class="stat">Éclairs : <span id="s-pts">—</span></div>
+      <div class="stat">Distance glob. : <span id="s-dist">—</span></div>
+      <div class="stat">Vitesse moy. : <span id="s-avg">—</span></div>
+      <div class="stat">Vitesse max : <span id="s-max">—</span></div>
+    </div>
+    <label style="cursor:pointer;font-size:11px;color:var(--accent2);border:1px solid var(--accent2);padding:4px 12px;">
+      ↑ CSV <input type="file" accept=".csv" id="reload-input" style="display:none">
+    </label>
+  </div>
+</header>
+
+<div id="map">
+  <div id="layer-toggle">
+    <button class="toggle-btn active" id="btn-circles">Cercles direction</button>
+    <button class="toggle-btn active" id="btn-centroids">Centroïdes</button>
+    <button class="toggle-btn active" id="btn-points">Points GPS</button>
+    <button class="toggle-btn active" id="btn-err">Incertitude</button>
+  </div>
+</div>
+
+<div id="chart-panel">
+  <div class="chart-wrap">
+    <div class="chart-title">■ Vitesse de déplacement groupe→groupe (km/h)</div>
+    <canvas id="speed-chart"></canvas>
+  </div>
+  <div class="chart-wrap">
+    <div class="chart-title">■ Distance inter-groupes (km)</div>
+    <canvas id="dist-chart"></canvas>
+  </div>
+</div>
+
+<script>
+// from: https://stackoverflow.com/a/27943/
+function haversine(lat1, lon1, lat2, lon2) {
+  const R = 6371;
+  const dLat = (lat2 - lat1) * Math.PI / 180;
+  const dLon = (lon2 - lon1) * Math.PI / 180;
+  const a = Math.sin(dLat/2)**2 +
+    Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLon/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+const PALETTE = [
+  '#00e5ff','#b2ff59','#ff9100','#d500f9','#ff4081',
+  '#69f0ae','#ffea00','#40c4ff','#ff6d00','#e040fb'
+];
+
+const map = L.map('map', { zoomControl: true }).setView([48.85, 2.35], 10);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+let layerCircles  = L.layerGroup().addTo(map);
+let layerCentroids = L.layerGroup().addTo(map);
+let layerPoints   = L.layerGroup().addTo(map);
+let layerErr      = L.layerGroup().addTo(map);
+
+let speedChart, distChart;
+const GAP_MS = 1 * 60 * 1000;
+
+const toggleState = { circles: true, centroids: true, points: true, err: true };
+function setupToggle(btnId, key, layer) {
+  document.getElementById(btnId).addEventListener('click', () => {
+    toggleState[key] = !toggleState[key];
+    document.getElementById(btnId).classList.toggle('active', toggleState[key]);
+    toggleState[key] ? map.addLayer(layer) : map.removeLayer(layer);
+  });
+}
+setupToggle('btn-circles',   'circles',   layerCircles);
+setupToggle('btn-centroids', 'centroids', layerCentroids);
+setupToggle('btn-points',    'points',    layerPoints);
+setupToggle('btn-err',       'err',       layerErr);
+
+function processData(rows) {
+  const keys = Object.keys(rows[0]).map(k => k.trim().toLowerCase());
+  const getCol = (...candidates) => {
+    for (const c of candidates) {
+      const k = keys.find(k => k.includes(c));
+      if (k) return Object.keys(rows[0])[keys.indexOf(k)];
+    }
+    return null;
+  };
+  const colLat = getCol('lat');
+  const colLon = getCol('lon', 'lng');
+  const colErr = getCol('err', 'error', 'precision', 'acc');
+  const colTs  = getCol('time', 'date', 'ts');
+
+  const strikes = rows.map(r => ({
+    lat: parseFloat(r[colLat]),
+    lon: parseFloat(r[colLon]),
+    err: colErr ? parseFloat(r[colErr]) || 0 : 0,
+    ts:  colTs ? new Date(r[colTs]) : null
+  })).filter(p => !isNaN(p.lat) && !isNaN(p.lon));
+
+  if (!strikes.length) { alert('Aucun point valide trouvé.'); return; }
+
+  // Group by 1-min windows
+  // from: https://stackoverflow.com/a/67380316
+  const batches = [];
+  let cur = [strikes[0]];
+  for (let i = 1; i < strikes.length; i++) {
+    const gap = strikes[i].ts && strikes[i-1].ts ? strikes[i].ts - strikes[i-1].ts : 0;
+    if (gap > GAP_MS) { batches.push(cur); cur = []; }
+    cur.push(strikes[i]);
+  }
+  batches.push(cur);
+
+  // Centroid per group
+  const centroids = batches.map((b, bi) => {
+    const lat    = b.reduce((s, p) => s + p.lat, 0) / b.length;
+    const lon    = b.reduce((s, p) => s + p.lon, 0) / b.length;
+    const avgErr = b.reduce((s, p) => s + p.err, 0) / b.length;
+    const sorted = [...b].filter(p => p.ts).sort((a,b) => a.ts - b.ts);
+    const ts = sorted.length ? sorted[Math.floor(sorted.length / 2)].ts : null;
+    return { lat, lon, avgErr, ts, n: b.length, color: PALETTE[bi % PALETTE.length] };
+  });
+
+  // Speed & distance between centroids
+  const interSpeeds = [null];
+  const interDists  = [null];
+  for (let i = 1; i < centroids.length; i++) {
+    const d = haversine(centroids[i-1].lat, centroids[i-1].lon, centroids[i].lat, centroids[i].lon);
+    interDists.push(d);
+    if (centroids[i].ts && centroids[i-1].ts) {
+      const dt = (centroids[i].ts - centroids[i-1].ts) / 3600000;
+      interSpeeds.push(dt > 0 ? Math.min(d / dt, 500) : null);
+    } else {
+      interSpeeds.push(null);
+    }
+  }
+
+  const validSpeeds = interSpeeds.filter(v => v !== null);
+  const totalDist   = interDists.filter(Boolean).reduce((a,b) => a+b, 0);
+  const avgSpeed    = validSpeeds.length ? validSpeeds.reduce((a,b)=>a+b,0)/validSpeeds.length : 0;
+  const maxSpeed    = validSpeeds.length ? Math.max(...validSpeeds) : 0;
+
+  document.getElementById('s-lots').textContent = batches.length;
+  document.getElementById('s-pts').textContent  = strikes.length;
+  document.getElementById('s-dist').textContent = totalDist.toFixed(1) + ' km';
+  document.getElementById('s-avg').textContent  = avgSpeed.toFixed(1) + ' km/h';
+  document.getElementById('s-max').textContent  = maxSpeed.toFixed(1) + ' km/h';
+
+  layerCircles.clearLayers();
+  layerCentroids.clearLayers();
+  layerPoints.clearLayers();
+  layerErr.clearLayers();
+
+  // Individual strike points (background)
+  batches.forEach((batch, bi) => {
+    const color = PALETTE[bi % PALETTE.length];
+    batch.forEach(s => {
+      if (s.err > 0) {
+        L.circle([s.lat, s.lon], {
+          radius: s.err * 1000, color, fillColor: color,
+          fillOpacity: 0.04, weight: 1, opacity: 0.15
+        }).addTo(layerErr);
+      }
+      L.circleMarker([s.lat, s.lon], {
+        radius: 3, fillColor: color,
+        color: 'transparent', weight: 0, fillOpacity: 0.25
+      }).addTo(layerPoints);
+    });
+  });
+
+  // Direction circles: for each pair (N, N+1)
+  // Circle center = midpoint, radius = half distance between centroids
+  // → the circle passes through both centroids, its orientation shows direction
+  // from: https://leafletjs.com/reference.html#circle
+  for (let i = 1; i < centroids.length; i++) {
+    const c0 = centroids[i-1];
+    const c1 = centroids[i];
+    const d  = interDists[i]; // km
+    if (d < 0.01) continue;   // skip if same position
+
+    const midLat = (c0.lat + c1.lat) / 2;
+    const midLon = (c0.lon + c1.lon) / 2;
+    const radiusM = (d / 2) * 1000; // metres
+
+    const v = interSpeeds[i];
+    const hue = v !== null ? Math.max(0, 120 - v * 0.4) : 60;
+    const color = `hsl(${hue},90%,60%)`;
+
+    // Main direction circle
+    L.circle([midLat, midLon], {
+      radius: radiusM,
+      color,
+      fillColor: color,
+      fillOpacity: 0.07,
+      weight: 1.5,
+      opacity: 0.7
+    }).bindTooltip(`<div class="custom-tooltip">
+      <b>Groupe ${i} → ${i+1}</b><br>
+      Dist: ${d.toFixed(2)} km<br>
+      Vitesse: ${v !== null ? v.toFixed(1)+' km/h' : '—'}<br>
+      <span style="font-size:9px;color:var(--muted)">⊙ centre = milieu · rayon = ½ dist.</span>
+    </div>`, { className: '', opacity: 1 }).addTo(layerCircles);
+
+    // Axis line through the circle (shows the direction vector)
+    L.polyline([[c0.lat, c0.lon],[c1.lat, c1.lon]], {
+      color, weight: 2, opacity: 0.6, dashArray: '4 5'
+    }).addTo(layerCircles);
+  }
+
+  // Centroid markers
+  centroids.forEach((c, i) => {
+    const tsStr = c.ts ? c.ts.toLocaleString('fr-FR') : `Groupe ${i+1}`;
+    if (c.avgErr > 0) {
+      L.circle([c.lat, c.lon], {
+        radius: c.avgErr * 1000, color: c.color, fillColor: c.color,
+        fillOpacity: 0.08, weight: 1, opacity: 0.35, dashArray: '3 4'
+      }).addTo(layerErr);
+    }
+    L.circleMarker([c.lat, c.lon], {
+      radius: 8, fillColor: c.color, color: '#0a0c0f', weight: 2, fillOpacity: 1
+    }).bindTooltip(`<div class="custom-tooltip">
+      <b style="color:${c.color}">⚡ Groupe ${i+1}</b><br>
+      ${tsStr}<br>
+      ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}<br>
+      Éclairs: ${c.n} · Erreur moy: ±${c.avgErr.toFixed(3)} km
+    </div>`, { className: '', opacity: 1 }).addTo(layerCentroids);
+
+    L.marker([c.lat, c.lon], {
+      icon: L.divIcon({
+        html: `<div style="font-family:'Space Mono',monospace;font-size:9px;font-weight:700;color:#0a0c0f;text-align:center;line-height:16px;">${i+1}</div>`,
+        className: '', iconSize: [16,16], iconAnchor: [8,8]
+      })
+    }).addTo(layerCentroids);
+  });
+
+  map.fitBounds(L.latLngBounds(strikes.map(s => [s.lat, s.lon])).pad(0.15));
+
+  // Charts
+  const labels = centroids.map((c, i) => c.ts ? c.ts.toLocaleTimeString('fr-FR') : `G${i+1}`);
+  const barColors = centroids.map(c => c.color);
+  const chartOpts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false } },
+    scales: {
+      x: { ticks: { color: '#4a5568', font: { family: 'Space Mono', size: 9 }, maxTicksLimit: 12 }, grid: { color: 'rgba(0,229,255,0.05)' } },
+      y: { ticks: { color: '#4a5568', font: { family: 'Space Mono', size: 9 } }, grid: { color: 'rgba(0,229,255,0.05)' } }
+    },
+    animation: { duration: 600 }
+  };
+
+  if (speedChart) speedChart.destroy();
+  speedChart = new Chart(document.getElementById('speed-chart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: interSpeeds.map(v => v ?? 0), backgroundColor: barColors.map(c=>c+'bb'), borderColor: barColors, borderWidth: 1 }] },
+    options: { ...chartOpts }
+  });
+  if (distChart) distChart.destroy();
+  distChart = new Chart(document.getElementById('dist-chart'), {
+    type: 'bar',
+    data: { labels, datasets: [{ data: interDists.map(v => v ?? 0), backgroundColor: barColors.map(c=>c+'88'), borderColor: barColors, borderWidth: 1 }] },
+    options: { ...chartOpts }
+  });
+}
+
+function loadCSV(file) {
+  Papa.parse(file, {
+    header: true, skipEmptyLines: true,
+    complete: (res) => {
+      document.getElementById('upload-overlay').style.display = 'none';
+      processData(res.data);
+    }
+  });
+}
+
+document.getElementById('csv-input').addEventListener('change', e => { if (e.target.files[0]) loadCSV(e.target.files[0]); });
+document.getElementById('reload-input').addEventListener('change', e => { if (e.target.files[0]) loadCSV(e.target.files[0]); });
+
+document.getElementById('demo-btn').addEventListener('click', () => {
+  const demoRows = [];
+  const groups = [
+    { lat: 43.60, lon: -1.50, t: '2024-03-01T06:00:00', n: 8 },
+    { lat: 43.80, lon: -0.30, t: '2024-03-01T06:05:00', n: 12 },
+    { lat: 44.10, lon:  1.20, t: '2024-03-01T06:10:00', n: 7  },
+    { lat: 44.50, lon:  2.80, t: '2024-03-01T06:15:00', n: 10 },
+    { lat: 44.80, lon:  4.10, t: '2024-03-01T06:20:00', n: 9  },
+  ];
+  groups.forEach(({ lat: baseLat, lon: baseLon, t: baseT, n }) => {
+    let t = new Date(baseT);
+    for (let i = 0; i < n; i++) {
+      t = new Date(t.getTime() + (5 + Math.random() * 20) * 1000);
+      demoRows.push({
+        timestamp: t.toISOString(),
+        latitude:  (baseLat + (Math.random()-0.5)*0.15).toFixed(6),
+        longitude: (baseLon + (Math.random()-0.5)*0.15).toFixed(6),
+        error_km:  (0.1 + Math.random()*0.6).toFixed(3)
+      });
+    }
+  });
+  document.getElementById('upload-overlay').style.display = 'none';
+  processData(demoRows);
+});
+</script>
+</body>
+</html>
