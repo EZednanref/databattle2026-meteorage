@@ -26,7 +26,6 @@ def assign_storm_ids(df: pd.DataFrame, gap_minutes: int) -> pd.DataFrame:
     df["prev_date"] = df.groupby("airport")["date"].shift(1)
     df["time_since_prev"] = df["date"] - df["prev_date"]
 
-    # Nouveau segment si gap > seuil OU premier éclair de cet aéroport
     new_storm = (df["time_since_prev"] > gap) | (df["time_since_prev"].isna())
     df["storm_id"] = new_storm.cumsum().astype(str)
 
@@ -35,6 +34,17 @@ def assign_storm_ids(df: pd.DataFrame, gap_minutes: int) -> pd.DataFrame:
     ).astype(str).str.zfill(4)
 
     df = df.drop(columns=["prev_date", "time_since_prev"])
+
+    # Calcul des métadonnées orage et merge sur chaque ligne
+    storm_meta = df.groupby("storm_id")["date"].agg(
+        start_time="min",
+        end_time="max"
+    ).reset_index()
+    storm_meta["duration_min"] = (
+        (storm_meta["end_time"] - storm_meta["start_time"]).dt.total_seconds() / 60
+    ).round(1)
+
+    df = df.merge(storm_meta, on="storm_id", how="left")
     return df
 
 
@@ -120,11 +130,9 @@ def main():
     df = load_data(RAW_PATH)
     print(f"  {len(df):,} éclairs chargés — {df['airport'].nunique()} aéroports")
     df = assign_storm_ids(df, GAP_MINUTES)
-    summary = build_storm_summary(df)
-    summary = filter_storms(summary, MIN_LIGHTNINGS)
-    print(f"  {len(summary):,} orages identifiés")
-    summary.to_csv(OUTPUT_PATH, index=False)
-    print(f"Orages → {OUTPUT_PATH}")
+    print(f"  {df['storm_id'].nunique():,} orages identifiés")
+    df.to_csv(OUTPUT_PATH, index=False)
+    print(f"Éclairs annotés → {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     main()
