@@ -14,7 +14,6 @@ OUTPUT_PATH    = "../output/processed/processed_enrichi.csv"
 GAP_MINUTES    = 30
 MIN_LIGHTNINGS = 3  # Si orages < N éclairs => on l'ignore
 
-
 def load_data(path: str) -> pd.DataFrame:
     df = pd.read_csv(path, parse_dates=["date"])
     df = df.sort_values(["airport", "date"]).reset_index(drop=True)
@@ -125,9 +124,7 @@ def main():
     summary = filter_storms(summary, MIN_LIGHTNINGS)
     print(f"  {len(summary):,} orages identifiés")
     summary.to_csv(OUTPUT_PATH, index=False)
-    enriched_path = OUTPUT_PATH
-    df.to_csv(enriched_path, index=False)
-    print(f"Éclairs enrichis → {enriched_path}")
+    print(f"Orages → {OUTPUT_PATH}")
 
 if __name__ == "__main__":
     main()
