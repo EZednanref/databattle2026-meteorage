@@ -9,13 +9,13 @@ Output : data/processed/storms.csv
 """
 
 # Config
-RAW_PATH       = "../data_enrichies/enrichi.csv"
-OUTPUT_PATH    = "../output/processed/processed_enrichi.csv"
+RAW_PATH       = "/home/dev/databattle2026-meteorage/storm_prediction/data/raw/enrichi.csv"
+OUTPUT_PATH    = "/home/dev/databattle2026-meteorage/storm_prediction/data/storms.csv"
 GAP_MINUTES    = 30
 MIN_LIGHTNINGS = 3  # Si orages < N éclairs => on l'ignore
 
 def load_data(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path, parse_dates=["date"])
+    df = pd.read_csv(path, parse_dates=["date"],sep=";")
     df = df.sort_values(["airport", "date"]).reset_index(drop=True)
     return df
 
