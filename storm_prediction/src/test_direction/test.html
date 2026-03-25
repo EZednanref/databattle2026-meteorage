@@ -99,6 +99,7 @@
       <div class="stat">Distance glob. : <span id="s-dist">—</span></div>
       <div class="stat">Vitesse moy. : <span id="s-avg">—</span></div>
       <div class="stat">Vitesse max : <span id="s-max">—</span></div>
+      <div class="stat" style="border-left:1px solid var(--accent);padding-left:12px;margin-left:8px;">⚡ Direction : <span id="s-dir-speed" style="color:var(--accent3);">—</span></div>
     </div>
     <label style="cursor:pointer;font-size:11px;color:var(--accent2);border:1px solid var(--accent2);padding:4px 12px;">
       ↑ CSV <input type="file" accept=".csv" id="reload-input" style="display:none">
@@ -108,6 +109,7 @@
 
 <div id="map">
   <div id="layer-toggle">
+    <button class="toggle-btn active" id="btn-direction">Direction globale</button>
     <button class="toggle-btn active" id="btn-circles">Cercles direction</button>
     <button class="toggle-btn active" id="btn-centroids">Centroïdes</button>
     <button class="toggle-btn active" id="btn-points">Points GPS</button>
@@ -151,11 +153,13 @@ let layerCircles  = L.layerGroup().addTo(map);
 let layerCentroids = L.layerGroup().addTo(map);
 let layerPoints   = L.layerGroup().addTo(map);
 let layerErr      = L.layerGroup().addTo(map);
+let layerDirection = L.layerGroup().addTo(map);
 
 let speedChart, distChart;
 const GAP_MS = 1 * 60 * 1000;
+const META_GROUP_SIZE = 5; // Nombre de centroïdes par méta-groupe
 
-const toggleState = { circles: true, centroids: true, points: true, err: true };
+const toggleState = { circles: true, centroids: true, points: true, err: true, direction: true };
 function setupToggle(btnId, key, layer) {
   document.getElementById(btnId).addEventListener('click', () => {
     toggleState[key] = !toggleState[key];
@@ -167,6 +171,7 @@ setupToggle('btn-circles',   'circles',   layerCircles);
 setupToggle('btn-centroids', 'centroids', layerCentroids);
 setupToggle('btn-points',    'points',    layerPoints);
 setupToggle('btn-err',       'err',       layerErr);
+setupToggle('btn-direction', 'direction', layerDirection);
 
 function processData(rows) {
   const keys = Object.keys(rows[0]).map(k => k.trim().toLowerCase());
@@ -241,6 +246,144 @@ function processData(rows) {
   layerCentroids.clearLayers();
   layerPoints.clearLayers();
   layerErr.clearLayers();
+  layerDirection.clearLayers();
+
+  // ========== META-CENTROIDS: Regrouper par 5 pour direction globale ==========
+  const metaCentroids = [];
+  for (let i = 0; i < centroids.length; i += META_GROUP_SIZE) {
+    const group = centroids.slice(i, i + META_GROUP_SIZE);
+    if (group.length === 0) continue;
+    
+    // Moyenne pondérée par le nombre d'éclairs de chaque centroïde
+    const totalN = group.reduce((s, c) => s + c.n, 0);
+    const metaLat = group.reduce((s, c) => s + c.lat * c.n, 0) / totalN;
+    const metaLon = group.reduce((s, c) => s + c.lon * c.n, 0) / totalN;
+    const avgErr = group.reduce((s, c) => s + c.avgErr * c.n, 0) / totalN;
+    
+    // Timestamp = milieu du groupe
+    const validTs = group.filter(c => c.ts).sort((a,b) => a.ts - b.ts);
+    const ts = validTs.length ? validTs[Math.floor(validTs.length / 2)].ts : null;
+    
+    metaCentroids.push({
+      lat: metaLat,
+      lon: metaLon,
+      avgErr,
+      ts,
+      n: totalN,
+      groupRange: [i + 1, Math.min(i + META_GROUP_SIZE, centroids.length)],
+      originalCentroids: group
+    });
+  }
+
+  // Couleurs pour les méta-centroïdes (gradient du bleu au rouge = début → fin)
+  const META_COLORS = ['#00e5ff', '#69f0ae', '#ffea00', '#ff9100', '#ff4081'];
+
+  // Calculer la vitesse moyenne globale entre méta-centroïdes
+  let globalDirDist = 0;
+  let globalDirTime = 0;
+  let globalDirSpeeds = [];
+  for (let i = 1; i < metaCentroids.length; i++) {
+    const d = haversine(metaCentroids[i-1].lat, metaCentroids[i-1].lon, metaCentroids[i].lat, metaCentroids[i].lon);
+    globalDirDist += d;
+    if (metaCentroids[i].ts && metaCentroids[i-1].ts) {
+      const dt = (metaCentroids[i].ts - metaCentroids[i-1].ts) / 3600000; // heures
+      globalDirTime += dt;
+      if (dt > 0) globalDirSpeeds.push(d / dt);
+    }
+  }
+  const globalDirAvgSpeed = globalDirTime > 0 ? globalDirDist / globalDirTime : (globalDirSpeeds.length ? globalDirSpeeds.reduce((a,b)=>a+b,0)/globalDirSpeeds.length : 0);
+  
+  // Calculer la direction (angle) entre premier et dernier méta-centroïde
+  let directionCardinal = '—';
+  if (metaCentroids.length >= 2) {
+    const first = metaCentroids[0];
+    const last = metaCentroids[metaCentroids.length - 1];
+    const angleDeg = Math.atan2(last.lon - first.lon, last.lat - first.lat) * 180 / Math.PI;
+    // Convertir en direction cardinale
+    const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SO', 'O', 'NO'];
+    const idx = Math.round(((angleDeg + 360) % 360) / 45) % 8;
+    directionCardinal = dirs[idx];
+  }
+  
+  document.getElementById('s-dir-speed').textContent = metaCentroids.length >= 2 
+    ? `${globalDirAvgSpeed.toFixed(1)} km/h → ${directionCardinal}` 
+    : '—';
+
+  // Tracer la ligne de direction globale
+  if (metaCentroids.length > 1) {
+    const directionLine = metaCentroids.map(mc => [mc.lat, mc.lon]);
+    L.polyline(directionLine, {
+      color: '#ffffff',
+      weight: 4,
+      opacity: 0.9,
+      dashArray: null,
+      lineCap: 'round',
+      lineJoin: 'round'
+    }).addTo(layerDirection);
+
+    // Flèche de direction (à la fin)
+    const last = metaCentroids[metaCentroids.length - 1];
+    const prev = metaCentroids[metaCentroids.length - 2];
+    const angle = Math.atan2(last.lon - prev.lon, last.lat - prev.lat) * 180 / Math.PI;
+    L.marker([last.lat, last.lon], {
+      icon: L.divIcon({
+        html: `<div style="transform: rotate(${angle - 90}deg); font-size: 24px; color: #ff4081;">➤</div>`,
+        className: '', iconSize: [24, 24], iconAnchor: [12, 12]
+      })
+    }).addTo(layerDirection);
+  }
+
+  // Afficher les méta-centroïdes
+  metaCentroids.forEach((mc, i) => {
+    const color = META_COLORS[i % META_COLORS.length];
+    const tsStr = mc.ts ? mc.ts.toLocaleString('fr-FR') : `Méta ${i+1}`;
+    
+    // Cercle de méta-centroïde (plus gros)
+    L.circleMarker([mc.lat, mc.lon], {
+      radius: 14,
+      fillColor: color,
+      color: '#ffffff',
+      weight: 3,
+      fillOpacity: 0.95
+    }).bindTooltip(`<div class="custom-tooltip">
+      <b style="color:${color}">◆ Direction ${i+1}/${metaCentroids.length}</b><br>
+      ${tsStr}<br>
+      Groupes ${mc.groupRange[0]}→${mc.groupRange[1]}<br>
+      ${mc.lat.toFixed(4)}, ${mc.lon.toFixed(4)}<br>
+      Total éclairs: ${mc.n}
+    </div>`, { className: '', opacity: 1 }).addTo(layerDirection);
+
+    // Numéro du méta-centroïde
+    L.marker([mc.lat, mc.lon], {
+      icon: L.divIcon({
+        html: `<div style="font-family:'Syne',sans-serif;font-size:11px;font-weight:800;color:#0a0c0f;text-align:center;line-height:14px;">${i+1}</div>`,
+        className: '', iconSize: [14,14], iconAnchor: [7,7]
+      })
+    }).addTo(layerDirection);
+
+    // Distance et vitesse entre méta-centroïdes consécutifs
+    if (i > 0) {
+      const prevMc = metaCentroids[i-1];
+      const d = haversine(prevMc.lat, prevMc.lon, mc.lat, mc.lon);
+      let speed = null;
+      if (mc.ts && prevMc.ts) {
+        const dt = (mc.ts - prevMc.ts) / 3600000;
+        if (dt > 0) speed = d / dt;
+      }
+      
+      // Afficher la distance sur le segment
+      const midLat = (prevMc.lat + mc.lat) / 2;
+      const midLon = (prevMc.lon + mc.lon) / 2;
+      L.marker([midLat, midLon], {
+        icon: L.divIcon({
+          html: `<div style="background:rgba(10,12,15,0.85);border:1px solid ${color};padding:2px 6px;font-family:'Space Mono',monospace;font-size:9px;color:${color};white-space:nowrap;">
+            ${d.toFixed(1)} km${speed ? ' · ' + speed.toFixed(0) + ' km/h' : ''}
+          </div>`,
+          className: '', iconSize: null, iconAnchor: [30, 10]
+        })
+      }).addTo(layerDirection);
+    }
+  });
 
   // Individual strike points (background)
   batches.forEach((batch, bi) => {
