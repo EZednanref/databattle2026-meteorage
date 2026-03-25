@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Storm Direction - Ajaccio_0629</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+  :root {
+    --bg: #0a0c0f; --panel: #111418; --border: #1e2530;
+    --accent: #00e5ff; --accent2: #ff4d6d; --accent3: #b2ff59;
+    --text: #c8d6e5; --muted: #4a5568;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    height: 100vh; display: flex; flex-direction: column;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+    padding: 12px 24px; background: var(--panel);
+  }
+  header h1 { font-size: 18px; color: var(--accent); }
+  .stat { font-size: 12px; color: var(--muted); }
+  .stat span { color: var(--accent); font-weight: 700; }
+  .stat.highlight span { color: var(--accent3); }
+  #map { flex: 1; background: var(--bg); }
+  .leaflet-container { background: #0d1117; }
+  .custom-tooltip {
+    background: var(--panel); border: 1px solid var(--accent);
+    padding: 8px 12px; font-size: 11px; line-height: 1.6;
+  }
+  .custom-tooltip b { color: var(--accent); }
+  .info-box {
+    position: absolute; bottom: 20px; left: 20px; z-index: 1000;
+    background: rgba(17,20,24,0.95); border: 1px solid var(--accent);
+    padding: 16px 20px; font-size: 12px; line-height: 1.8;
+  }
+  .info-box h3 { color: var(--accent); margin-bottom: 8px; font-size: 14px; }
+  .info-box .big { font-size: 24px; font-weight: 700; color: var(--accent3); }
+  .exit-box {
+    position: absolute; bottom: 20px; right: 20px; z-index: 1000;
+    background: rgba(17,20,24,0.95); border: 1px solid var(--accent2);
+    padding: 16px 20px; font-size: 12px; line-height: 1.8; max-width: 280px;
+  }
+  .exit-box h3 { color: var(--accent2); margin-bottom: 8px; font-size: 14px; }
+  .exit-box .big { font-size: 20px; font-weight: 700; color: var(--accent2); }
+  .stat.exit span { color: var(--accent2); }
+  .stat.prediction span { color: #ffea00; }
+  .stat.trend span { color: #b388ff; }
+  .prediction-box {
+    position: absolute; top: 80px; right: 20px; z-index: 1000;
+    background: rgba(17,20,24,0.95); border: 2px solid #ffea00;
+    padding: 16px 20px; font-size: 12px; line-height: 1.8; max-width: 300px;
+  }
+  .prediction-box h3 { color: #ffea00; margin-bottom: 8px; font-size: 14px; }
+  .prediction-box .big { font-size: 22px; font-weight: 700; color: #ffea00; }
+  .trends-box {
+    position: absolute; top: 80px; left: 20px; z-index: 1000;
+    background: rgba(17,20,24,0.95); border: 1px solid #b388ff;
+    padding: 16px 20px; font-size: 12px; line-height: 1.8; max-width: 320px;
+  }
+  .trends-box h3 { color: #b388ff; margin-bottom: 8px; font-size: 14px; }
+  .trends-box .trend-value { font-weight: 700; }
+  .trends-box .trend-value.positive { color: #ff4d6d; }
+  .trends-box .trend-value.negative { color: #69f0ae; }
+  .trends-box .r2 { color: var(--muted); font-size: 10px; }
+  .confidence-bar { 
+    height: 6px; background: #1e2530; border-radius: 3px; margin-top: 8px;
+  }
+  .confidence-bar .fill { 
+    height: 100%; border-radius: 3px; transition: width 0.3s;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>⚡ Ajaccio_0629</h1>
+  <div class="stat">Aéroport : <span>Ajaccio</span></div>
+  <div class="stat">Durée : <span>133.3 min</span></div>
+  <div class="stat">Éclairs : <span>77</span></div>
+  <div class="stat">Centroïdes : <span>53</span></div>
+  <div class="stat">Méta-points : <span>11</span></div>
+  <div class="stat highlight">Distance : <span>89.29 km</span></div>
+  <div class="stat highlight">⚡ Direction : <span>51.6 km/h → E</span></div>
+  <div class="stat trend">📊 Tendance : <span>Stationnaire</span></div>
+  <div class="stat exit">🚨 Sortie 30km : <span>Reste dans la zone</span></div>
+  <div class="stat prediction">🔮 Prédiction : <span>~33.0 min</span></div>
+</header>
+
+<div id="map"></div>
+
+<div class="trends-box" id="trends-box" style="display:block;">
+  <h3>📊 Analyse des tendances</h3>
+  <div style="margin-bottom:10px;">
+    <strong>Distance</strong> 29.3 → 19.1 km<br>
+    <span class="trend-value negative">-3.4 km/h (se rapproche)</span>
+    <span class="r2">(R² = 0.065)</span>
+  </div>
+  <div style="margin-bottom:10px;">
+    <strong>Azimut</strong> 216.0° → 84.8°<br>
+    <span class="trend-value">+0.74°/min (sens horaire)</span>
+    <span class="r2">(R² = 0.047)</span>
+  </div>
+  <div style="margin-top:12px;">
+    <strong>Confiance</strong> 5%
+    <div class="confidence-bar">
+      <div class="fill" style="width:5%;background:#ff4d6d;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="info-box">
+  <h3>Direction globale</h3>
+  <div class="big">51.6 km/h → E</div>
+  <div style="margin-top:8px;color:var(--muted);">
+    Distance totale : 89.29 km<br>
+    Basé sur 11 méta-centroïdes
+  </div>
+</div>
+
+<div class="exit-box" id="exit-box" style="display:none;">
+  <h3>🚨 Sortie zone 30km</h3>
+  <div class="big">—</div>
+  <div style="margin-top:8px;color:var(--muted);">
+    Après — min<br>
+    Distance aéroport : — km<br>
+    Centroïde #—
+  </div>
+</div>
+
+<div class="prediction-box" id="prediction-box" style="display:block;">
+  <h3>🔮 Prédiction de sortie</h3>
+  <div class="big">Dans ~33.0 min</div>
+  <div style="margin-top:8px;color:var(--muted);">
+    Position estimée :<br>
+    📍 41.91102, 9.17377<br>
+    Basé sur vitesse 51.6 km/h → E
+  </div>
+</div>
+
+<script>
+const DATA = {"storm_id": "Ajaccio_0629", "airport": "Ajaccio", "airport_coords": {"lat": 41.9236, "lon": 8.8029}, "duration_min": 133.3, "n_strikes": 77, "centroids": [{"lat": 41.6918, "lon": 8.6343, "ts": "2022-02-14T19:58:59+00:00", "n": 1, "amp_mean": 6.94, "azimuth_mean": 216.0, "dist_to_airport": 29.319352932620248, "inside_radius": true, "dist_from_prev": 0, "speed_kmh": 0}, {"lat": 41.8696, "lon": 8.535, "ts": "2022-02-14T20:00:05+00:00", "n": 1, "amp_mean": -13.53, "azimuth_mean": 258.6, "dist_to_airport": 22.97217637222113, "inside_radius": true, "dist_from_prev": 21.416483285108043, "speed_kmh": 1168.171815551348}, {"lat": 41.89276666666667, "lon": 8.581033333333332, "ts": "2022-02-14T20:03:29+00:00", "n": 3, "amp_mean": -5.7299999999999995, "azimuth_mean": 268.2, "dist_to_airport": 18.6775110322664, "inside_radius": true, "dist_from_prev": 4.599962309098289, "speed_kmh": 81.1758054546757}, {"lat": 41.7406, "lon": 8.5434, "ts": "2022-02-14T20:06:53+00:00", "n": 1, "amp_mean": 12.62, "azimuth_mean": 234.8, "dist_to_airport": 29.60264296705773, "inside_radius": true, "dist_from_prev": 17.20518343450445, "speed_kmh": 303.6208841383138}, {"lat": 41.884, "lon": 8.592500000000001, "ts": "2022-02-14T20:07:23+00:00", "n": 2, "amp_mean": -45.5, "azimuth_mean": 261.9, "dist_to_airport": 17.960569941217347, "inside_radius": true, "dist_from_prev": 16.456403405657777, "speed_kmh": 1974.7684086789334}, {"lat": 41.8151, "lon": 8.59985, "ts": "2022-02-14T20:08:25.500000+00:00", "n": 2, "amp_mean": -7.59, "azimuth_mean": 242.6, "dist_to_airport": 20.693958824688103, "inside_radius": true, "dist_from_prev": 7.68548068435884, "speed_kmh": 442.68368741906914}, {"lat": 41.7839, "lon": 8.537, "ts": "2022-02-14T20:09:40+00:00", "n": 1, "amp_mean": -17.51, "azimuth_mean": 242.3, "dist_to_airport": 26.950048973551326, "inside_radius": true, "dist_from_prev": 6.259289924201917, "speed_kmh": 302.4623319077436}, {"lat": 41.790549999999996, "lon": 8.5637, "ts": "2022-02-14T20:11:26+00:00", "n": 2, "amp_mean": -26.745, "azimuth_mean": 240.9, "dist_to_airport": 24.72502269835718, "inside_radius": true, "dist_from_prev": 2.3339229571059428, "speed_kmh": 79.26530797718297}, {"lat": 41.84495, "lon": 8.62205, "ts": "2022-02-14T20:12:34+00:00", "n": 2, "amp_mean": -18.66, "azimuth_mean": 250.2, "dist_to_airport": 17.338652934859525, "inside_radius": true, "dist_from_prev": 7.744176116736934, "speed_kmh": 409.98579441548475}, {"lat": 41.858149999999995, "lon": 8.626850000000001, "ts": "2022-02-14T20:13:56.500000+00:00", "n": 2, "amp_mean": -32.19, "azimuth_mean": 254.8, "dist_to_airport": 16.28883964544806, "inside_radius": true, "dist_from_prev": 1.520663372659314, "speed_kmh": 66.35621989786098}, {"lat": 41.8027, "lon": 8.6042, "ts": "2022-02-14T20:14:41+00:00", "n": 1, "amp_mean": -16.94, "azimuth_mean": 238.7, "dist_to_airport": 21.2480844670206, "inside_radius": true, "dist_from_prev": 6.44502520486221, "speed_kmh": 521.395297471999}, {"lat": 41.814350000000005, "lon": 8.581, "ts": "2022-02-14T20:15:36+00:00", "n": 2, "amp_mean": -28.745, "azimuth_mean": 243.7, "dist_to_airport": 22.026912937458736, "inside_radius": true, "dist_from_prev": 2.3185180191309382, "speed_kmh": 151.7575430703887}, {"lat": 41.855133333333335, "lon": 8.607166666666666, "ts": "2022-02-14T20:16:26+00:00", "n": 3, "amp_mean": -30.27333333333333, "azimuth_mean": 256.1, "dist_to_airport": 17.90180116231794, "inside_radius": true, "dist_from_prev": 5.026423850274597, "speed_kmh": 361.90251721977097}, {"lat": 41.8426, "lon": 8.5825, "ts": "2022-02-14T20:17:52+00:00", "n": 1, "amp_mean": -29.98, "azimuth_mean": 249.8, "dist_to_airport": 20.34787882083057, "inside_radius": true, "dist_from_prev": 2.473186745619039, "speed_kmh": 103.52874749102953}, {"lat": 41.8287, "lon": 8.6075, "ts": "2022-02-14T20:18:55+00:00", "n": 1, "amp_mean": -47.48, "azimuth_mean": 244.1, "dist_to_airport": 19.315341121314304, "inside_radius": true, "dist_from_prev": 2.5843135072551444, "speed_kmh": 147.67505755743682}, {"lat": 41.8471, "lon": 8.5929, "ts": "2022-02-14T20:20:12+00:00", "n": 1, "amp_mean": -18.14, "azimuth_mean": 250.0, "dist_to_airport": 19.353930062358344, "inside_radius": true, "dist_from_prev": 2.3767644991560606, "speed_kmh": 111.12145710340025}, {"lat": 41.95545, "lon": 8.70495, "ts": "2022-02-14T20:23:59+00:00", "n": 2, "amp_mean": -34.269999999999996, "azimuth_mean": 289.9, "dist_to_airport": 8.841938024591357, "inside_radius": true, "dist_from_prev": 15.203650569242715, "speed_kmh": 241.11516321265978}, {"lat": 41.985150000000004, "lon": 8.717649999999999, "ts": "2022-02-14T20:27:08.500000+00:00", "n": 2, "amp_mean": 18.215, "azimuth_mean": 301.7, "dist_to_airport": 9.825360579596188, "inside_radius": true, "dist_from_prev": 3.4653731375221843, "speed_kmh": 65.8329461481787}, {"lat": 41.98144, "lon": 8.754900000000001, "ts": "2022-02-14T20:30:33+00:00", "n": 5, "amp_mean": -25.28, "azimuth_mean": 179.4, "dist_to_airport": 7.557804438195729, "inside_radius": true, "dist_from_prev": 3.1064359115024, "speed_kmh": 54.68542435896646}, {"lat": 42.0334, "lon": 8.932, "ts": "2022-02-14T20:31:54+00:00", "n": 1, "amp_mean": 20.28, "azimuth_mean": 49.6, "dist_to_airport": 16.215686674044633, "inside_radius": true, "dist_from_prev": 15.732110953341126, "speed_kmh": 699.2049312596056}, {"lat": 41.913, "lon": 8.761700000000001, "ts": "2022-02-14T20:36:25+00:00", "n": 2, "amp_mean": -14.114999999999998, "azimuth_mean": 281.4, "dist_to_airport": 3.6069039060388945, "inside_radius": true, "dist_from_prev": 19.427775121589242, "speed_kmh": 258.08114552664676}, {"lat": 41.8409, "lon": 8.7444, "ts": "2022-02-14T20:38:08+00:00", "n": 1, "amp_mean": -12.37, "azimuth_mean": 215.3, "dist_to_airport": 10.393168081003765, "inside_radius": true, "dist_from_prev": 8.144097536771032, "speed_kmh": 284.64806924636616}, {"lat": 41.9045, "lon": 8.7551, "ts": "2022-02-14T20:42:25+00:00", "n": 1, "amp_mean": 9.52, "azimuth_mean": 248.2, "dist_to_airport": 4.489375226533, "inside_radius": true, "dist_from_prev": 7.12727528360309, "speed_kmh": 99.83731914774756}, {"lat": 41.8811, "lon": 8.8148, "ts": "2022-02-14T20:43:45+00:00", "n": 1, "amp_mean": -13.27, "azimuth_mean": 164.4, "dist_to_airport": 4.827315005013405, "inside_radius": true, "dist_from_prev": 5.584719986930424, "speed_kmh": 251.31239941186908}, {"lat": 41.7634, "lon": 8.5464, "ts": "2022-02-14T20:44:50+00:00", "n": 1, "amp_mean": -10.16, "azimuth_mean": 238.0, "dist_to_airport": 27.726875630414742, "inside_radius": true, "dist_from_prev": 25.805781240543407, "speed_kmh": 1429.2432687070195}, {"lat": 41.91905, "lon": 8.636399999999998, "ts": "2022-02-14T20:45:10+00:00", "n": 2, "amp_mean": 0.1999999999999993, "azimuth_mean": 221.1, "dist_to_airport": 13.784833384379366, "inside_radius": true, "dist_from_prev": 18.84502067928375, "speed_kmh": 3392.1037222710747}, {"lat": 41.8991, "lon": 8.8427, "ts": "2022-02-14T20:46:08+00:00", "n": 1, "amp_mean": -5.01, "azimuth_mean": 121.6, "dist_to_airport": 4.274133418788574, "inside_radius": true, "dist_from_prev": 17.21523833827542, "speed_kmh": 1068.5320347895088}, {"lat": 41.8814, "lon": 8.8092, "ts": "2022-02-14T20:47:09+00:00", "n": 1, "amp_mean": 50.71, "azimuth_mean": 171.5, "dist_to_airport": 4.721303748047275, "inside_radius": true, "dist_from_prev": 3.4004673323114174, "speed_kmh": 200.68331797247708}, {"lat": 41.9184, "lon": 8.8107, "ts": "2022-02-14T20:48:41+00:00", "n": 1, "amp_mean": 31.85, "azimuth_mean": 123.7, "dist_to_airport": 0.8664872833102109, "inside_radius": true, "dist_from_prev": 4.116084897697641, "speed_kmh": 161.06419164903812}, {"lat": 41.906, "lon": 8.8314, "ts": "2022-02-14T20:52:11+00:00", "n": 1, "amp_mean": 25.59, "azimuth_mean": 121.7, "dist_to_airport": 3.0644999659100995, "inside_radius": true, "dist_from_prev": 2.19888525735857, "speed_kmh": 37.69517584043263}, {"lat": 41.7742, "lon": 8.8147, "ts": "2022-02-14T20:59:21+00:00", "n": 1, "amp_mean": -9.39, "azimuth_mean": 175.5, "dist_to_airport": 16.64124943048142, "inside_radius": true, "dist_from_prev": 14.720643818351645, "speed_kmh": 123.24259940945562}, {"lat": 41.7703, "lon": 8.8048, "ts": "2022-02-14T21:00:06+00:00", "n": 1, "amp_mean": -8.34, "azimuth_mean": 179.3, "dist_to_airport": 17.046908762469513, "inside_radius": true, "dist_from_prev": 0.9284923228349145, "speed_kmh": 74.27938582679315}, {"lat": 41.782, "lon": 8.8019, "ts": "2022-02-14T21:01:13+00:00", "n": 1, "amp_mean": -25.1, "azimuth_mean": 180.4, "dist_to_airport": 15.745419453539725, "inside_radius": true, "dist_from_prev": 1.323019674045496, "speed_kmh": 71.08762427707144}, {"lat": 41.7762, "lon": 8.7772, "ts": "2022-02-14T21:02:37+00:00", "n": 1, "amp_mean": -16.51, "azimuth_mean": 189.9, "dist_to_airport": 16.527787623268225, "inside_radius": true, "dist_from_prev": 2.1472692927343355, "speed_kmh": 92.02582683147152}, {"lat": 41.7875, "lon": 8.8069, "ts": "2022-02-14T21:03:50+00:00", "n": 1, "amp_mean": -14.7, "azimuth_mean": 178.3, "dist_to_airport": 15.137255098652115, "inside_radius": true, "dist_from_prev": 2.764654467256267, "speed_kmh": 136.33912441263783}, {"lat": 41.82265, "lon": 8.83455, "ts": "2022-02-14T21:05:08+00:00", "n": 2, "amp_mean": -11.89, "azimuth_mean": 158.0, "dist_to_airport": 11.52696351198828, "inside_radius": true, "dist_from_prev": 4.530871476918687, "speed_kmh": 209.1171450885548}, {"lat": 41.926100000000005, "lon": 8.888950000000001, "ts": "2022-02-14T21:06:34.500000+00:00", "n": 2, "amp_mean": -24.57, "azimuth_mean": 114.0, "dist_to_airport": 7.124466607013018, "inside_radius": true, "dist_from_prev": 12.35350170609541, "speed_kmh": 514.1341750513697}, {"lat": 41.8192, "lon": 8.8206, "ts": "2022-02-14T21:09:03+00:00", "n": 1, "amp_mean": -34.06, "azimuth_mean": 170.4, "dist_to_airport": 11.700896811745475, "inside_radius": true, "dist_from_prev": 13.16519612938178, "speed_kmh": 319.1562698031947}, {"lat": 41.8648, "lon": 8.8974, "ts": "2022-02-14T21:14:35+00:00", "n": 1, "amp_mean": -112.46, "azimuth_mean": 121.9, "dist_to_airport": 10.194635858690438, "inside_radius": true, "dist_from_prev": 8.135424967731145, "speed_kmh": 88.21545145732567}, {"lat": 41.82835, "lon": 8.7315, "ts": "2022-02-14T21:19:18+00:00", "n": 2, "amp_mean": -29.57, "azimuth_mean": 169.0, "dist_to_airport": 12.129400993852302, "inside_radius": true, "dist_from_prev": 14.327212619825136, "speed_kmh": 182.25429481049642}, {"lat": 41.8978, "lon": 8.958, "ts": "2022-02-14T21:21:13+00:00", "n": 1, "amp_mean": -5.82, "azimuth_mean": 99.4, "dist_to_airport": 13.151211168107555, "inside_radius": true, "dist_from_prev": 20.284335293233045, "speed_kmh": 634.9878874403389}, {"lat": 41.9271, "lon": 8.9597, "ts": "2022-02-14T21:25:13+00:00", "n": 1, "amp_mean": 7.53, "azimuth_mean": 88.7, "dist_to_airport": 12.97802495374737, "inside_radius": true, "dist_from_prev": 3.2610468003140816, "speed_kmh": 48.91570200471122}, {"lat": 41.762, "lon": 8.705200000000001, "ts": "2022-02-14T21:27:49+00:00", "n": 2, "amp_mean": -51.725, "azimuth_mean": 198.6, "dist_to_airport": 19.707589656956326, "inside_radius": true, "dist_from_prev": 27.95461400488915, "speed_kmh": 645.1064770359035}, {"lat": 41.763, "lon": 8.5738, "ts": "2022-02-14T21:29:40+00:00", "n": 1, "amp_mean": -24.52, "azimuth_mean": 235.0, "dist_to_airport": 26.05892553005776, "inside_radius": true, "dist_from_prev": 10.899097604302968, "speed_kmh": 353.4842466260422}, {"lat": 41.7793, "lon": 8.6131, "ts": "2022-02-14T21:30:52+00:00", "n": 1, "amp_mean": -18.02, "azimuth_mean": 232.8, "dist_to_airport": 22.46305303667916, "inside_radius": true, "dist_from_prev": 3.7292416070869834, "speed_kmh": 186.46208035434915}, {"lat": 41.77785, "lon": 8.651150000000001, "ts": "2022-02-14T21:32:13.500000+00:00", "n": 2, "amp_mean": -13.545, "azimuth_mean": 224.8, "dist_to_airport": 20.509439754532988, "inside_radius": true, "dist_from_prev": 3.159255544576528, "speed_kmh": 139.54993816534355}, {"lat": 41.7669, "lon": 8.7087, "ts": "2022-02-14T21:34:25+00:00", "n": 1, "amp_mean": -8.07, "azimuth_mean": 211.0, "dist_to_airport": 19.091654578132715, "inside_radius": true, "dist_from_prev": 4.925424666174347, "speed_kmh": 134.8405231804384}, {"lat": 41.7512, "lon": 8.6976, "ts": "2022-02-14T21:36:15+00:00", "n": 1, "amp_mean": 87.13, "azimuth_mean": 211.4, "dist_to_airport": 21.061559002599296, "inside_radius": true, "dist_from_prev": 1.9736693719756317, "speed_kmh": 64.59281581011159}, {"lat": 41.8879, "lon": 8.7534, "ts": "2022-02-14T21:40:29+00:00", "n": 1, "amp_mean": -6.97, "azimuth_mean": 234.2, "dist_to_airport": 5.704292215770253, "inside_radius": true, "dist_from_prev": 15.888112446473428, "speed_kmh": 225.1858456980486}, {"lat": 41.8274, "lon": 8.7439, "ts": "2022-02-14T21:41:58+00:00", "n": 1, "amp_mean": -9.41, "azimuth_mean": 211.5, "dist_to_airport": 11.759561910780713, "inside_radius": true, "dist_from_prev": 6.773144641390404, "speed_kmh": 273.9698956068029}, {"lat": 41.85435, "lon": 8.7661, "ts": "2022-02-14T21:44:17+00:00", "n": 2, "amp_mean": -6.885, "azimuth_mean": 247.2, "dist_to_airport": 8.280901837991449, "inside_radius": true, "dist_from_prev": 3.5160131641344794, "speed_kmh": 91.06221144520954}, {"lat": 41.856, "lon": 8.7703, "ts": "2022-02-14T21:47:24+00:00", "n": 1, "amp_mean": -17.71, "azimuth_mean": 205.7, "dist_to_airport": 7.986487298818064, "inside_radius": true, "dist_from_prev": 0.39327136698518467, "speed_kmh": 7.57099957832441}, {"lat": 41.9445, "lon": 9.0322, "ts": "2022-02-14T22:12:17+00:00", "n": 1, "amp_mean": -6.65, "azimuth_mean": 84.8, "dist_to_airport": 19.109420690872824, "inside_radius": true, "dist_from_prev": 23.804968439594372, "speed_kmh": 57.39978994141978}], "meta_centroids": [{"lat": 41.8435375, "lon": 8.5801, "ts": "2022-02-14T20:03:29+00:00", "n": 8, "group_range": [1, 5], "dist_from_prev": 0, "speed_kmh": 0}, {"lat": 41.82237777777778, "lon": 8.595766666666666, "ts": "2022-02-14T20:11:26+00:00", "n": 9, "group_range": [6, 10], "dist_from_prev": 2.6871363824803445, "speed_kmh": 20.280274584757315}, {"lat": 41.8335125, "lon": 8.5972125, "ts": "2022-02-14T20:16:26+00:00", "n": 8, "group_range": [11, 15], "dist_from_prev": 1.2439067461395232, "speed_kmh": 14.92688095367428}, {"lat": 41.9699, "lon": 8.740418181818184, "ts": "2022-02-14T20:27:08.500000+00:00", "n": 11, "group_range": [16, 20], "dist_from_prev": 19.247412668779937, "speed_kmh": 107.84542507020664}, {"lat": 41.86931666666666, "lon": 8.730683333333333, "ts": "2022-02-14T20:42:25+00:00", "n": 6, "group_range": [21, 25], "dist_from_prev": 11.213320981256365, "speed_kmh": 44.04577799511502}, {"lat": 41.90716666666667, "lon": 8.761133333333333, "ts": "2022-02-14T20:47:09+00:00", "n": 6, "group_range": [26, 30], "dist_from_prev": 4.905803072227301, "speed_kmh": 62.18623612682495}, {"lat": 41.77804, "lon": 8.8011, "ts": "2022-02-14T21:01:13+00:00", "n": 5, "group_range": [31, 35], "dist_from_prev": 14.734988532763609, "speed_kmh": 62.85066198809122}, {"lat": 41.854775000000004, "lon": 8.8285, "ts": "2022-02-14T21:09:03+00:00", "n": 8, "group_range": [36, 40], "dist_from_prev": 8.829514043908974, "speed_kmh": 67.63032033632405}, {"lat": 41.815200000000004, "lon": 8.7525, "ts": "2022-02-14T21:27:49+00:00", "n": 6, "group_range": [41, 45], "dist_from_prev": 7.681788579268579, "speed_kmh": 24.55989243815887}, {"lat": 41.798183333333334, "lon": 8.700983333333333, "ts": "2022-02-14T21:36:15+00:00", "n": 6, "group_range": [46, 50], "dist_from_prev": 4.670398360651562, "speed_kmh": 33.22813062914155}, {"lat": 41.8773, "lon": 8.833675, "ts": "2022-02-14T21:47:24+00:00", "n": 4, "group_range": [51, 53], "dist_from_prev": 14.079567031924363, "speed_kmh": 75.764486270445}], "global_speed_kmh": 51.6, "global_direction": "E", "direction_angle": 82.41590213918805, "global_distance_km": 89.29, "exit_info": null, "predicted_exit": {"exit_lat": 41.91102, "exit_lon": 9.17377, "time_to_exit_min": 33.0, "exit_distance_km": 30.72, "predicted": true, "confidence": 0.058, "method": "centroid"}, "radius_km": 30, "trends": {"dist_slope": -0.0566, "dist_r2": 0.065, "azimuth_slope": 0.737, "azimuth_r2": 0.047, "mean_azimuth": 211.3, "mean_dist": 16.66, "confidence": 0.058, "trend_label": "Stationnaire", "dist_start": 29.3, "dist_end": 19.1, "azimuth_start": 216.0, "azimuth_end": 84.8}};
+
+const PALETTE = ['#00e5ff','#69f0ae','#ffea00','#ff9100','#ff4081'];
+const META_COLORS = ['#00e5ff', '#69f0ae', '#ffea00', '#ff9100', '#ff4081'];
+
+const map = L.map('map', { zoomControl: true }).setView([DATA.centroids[0].lat, DATA.centroids[0].lon], 10);
+L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+  attribution: '© OpenStreetMap © CARTO', subdomains: 'abcd', maxZoom: 19
+}).addTo(map);
+
+// Centroïdes individuels (petits points) - couleur change tous les 5
+DATA.centroids.forEach((c, i) => {
+  const groupIndex = Math.floor(i / 5);  // Groupe de 5 centroïdes
+  const color = PALETTE[groupIndex % PALETTE.length];
+  L.circleMarker([c.lat, c.lon], {
+    radius: 5, fillColor: color, color: '#0a0c0f', weight: 1, fillOpacity: 0.7
+  }).bindTooltip(`<div class="custom-tooltip">
+    <b style="color:${color}">Centroïde ${i+1}</b> (groupe ${groupIndex+1})<br>
+    ${c.ts}<br>
+    Éclairs: ${c.n}<br>
+    ${c.azimuth_mean !== null ? '🧭 Azimut: ' + c.azimuth_mean.toFixed(1) + '°<br>' : ''}
+    ${c.dist_from_prev ? 'Dist: ' + c.dist_from_prev.toFixed(2) + ' km' : ''}
+    ${c.speed_kmh ? ' · ' + c.speed_kmh.toFixed(1) + ' km/h' : ''}
+  </div>`, { className: '', opacity: 1 }).addTo(map);
+});
+
+// Ligne entre centroïdes (fine, grise)
+if (DATA.centroids.length > 1) {
+  const line = DATA.centroids.map(c => [c.lat, c.lon]);
+  L.polyline(line, { color: '#4a5568', weight: 1.5, opacity: 0.5 }).addTo(map);
+}
+
+// Méta-centroïdes (gros points)
+DATA.meta_centroids.forEach((mc, i) => {
+  const color = META_COLORS[i % META_COLORS.length];
+  
+  L.circleMarker([mc.lat, mc.lon], {
+    radius: 14, fillColor: color, color: '#ffffff', weight: 3, fillOpacity: 0.95
+  }).bindTooltip(`<div class="custom-tooltip">
+    <b style="color:${color}">◆ Direction ${i+1}/${DATA.meta_centroids.length}</b><br>
+    ${mc.ts}<br>
+    Groupes ${mc.group_range[0]}→${mc.group_range[1]}<br>
+    Éclairs: ${mc.n}<br>
+    ${mc.dist_from_prev ? 'Dist: ' + mc.dist_from_prev.toFixed(2) + ' km · ' + mc.speed_kmh.toFixed(1) + ' km/h' : ''}
+  </div>`, { className: '', opacity: 1 }).addTo(map);
+
+  // Numéro
+  L.marker([mc.lat, mc.lon], {
+    icon: L.divIcon({
+      html: `<div style="font-size:11px;font-weight:800;color:#0a0c0f;text-align:center;line-height:14px;">${i+1}</div>`,
+      className: '', iconSize: [14,14], iconAnchor: [7,7]
+    })
+  }).addTo(map);
+});
+
+// Ligne de direction globale (épaisse, blanche)
+if (DATA.meta_centroids.length > 1) {
+  const dirLine = DATA.meta_centroids.map(mc => [mc.lat, mc.lon]);
+  L.polyline(dirLine, { color: '#ffffff', weight: 4, opacity: 0.9 }).addTo(map);
+
+  // Flèche de direction
+  const last = DATA.meta_centroids[DATA.meta_centroids.length - 1];
+  const prev = DATA.meta_centroids[DATA.meta_centroids.length - 2];
+  const angle = Math.atan2(last.lon - prev.lon, last.lat - prev.lat) * 180 / Math.PI;
+  L.marker([last.lat, last.lon], {
+    icon: L.divIcon({
+      html: `<div style="transform:rotate(${angle-90}deg);font-size:28px;color:#ff4081;">➤</div>`,
+      className: '', iconSize: [28,28], iconAnchor: [14,14]
+    })
+  }).addTo(map);
+  
+  // Labels distance sur segments
+  for (let i = 1; i < DATA.meta_centroids.length; i++) {
+    const m0 = DATA.meta_centroids[i-1];
+    const m1 = DATA.meta_centroids[i];
+    const midLat = (m0.lat + m1.lat) / 2;
+    const midLon = (m0.lon + m1.lon) / 2;
+    const color = META_COLORS[i % META_COLORS.length];
+    L.marker([midLat, midLon], {
+      icon: L.divIcon({
+        html: `<div style="background:rgba(10,12,15,0.9);border:1px solid ${color};padding:2px 6px;font-size:9px;color:${color};white-space:nowrap;">
+          ${m1.dist_from_prev.toFixed(1)} km · ${m1.speed_kmh.toFixed(0)} km/h
+        </div>`,
+        className: '', iconSize: null, iconAnchor: [40, 10]
+      })
+    }).addTo(map);
+  }
+}
+
+// === Cercle de 30km autour de l'aéroport ===
+if (DATA.airport_coords) {
+  // Cercle de la zone de surveillance
+  L.circle([DATA.airport_coords.lat, DATA.airport_coords.lon], {
+    radius: DATA.radius_km * 1000,
+    color: '#ff4d6d',
+    fillColor: '#ff4d6d',
+    fillOpacity: 0.05,
+    weight: 2,
+    dashArray: '8 4'
+  }).bindTooltip(`<div class="custom-tooltip">
+    <b style="color:#ff4d6d">Zone de surveillance</b><br>
+    Rayon : ${DATA.radius_km} km
+  </div>`, { className: '', opacity: 1 }).addTo(map);
+
+  // Marqueur de l'aéroport
+  L.marker([DATA.airport_coords.lat, DATA.airport_coords.lon], {
+    icon: L.divIcon({
+      html: `<div style="font-size:20px;">✈️</div>`,
+      className: '', iconSize: [20,20], iconAnchor: [10,10]
+    })
+  }).bindTooltip(`<div class="custom-tooltip">
+    <b>Aéroport ${DATA.airport}</b><br>
+    ${DATA.airport_coords.lat.toFixed(4)}, ${DATA.airport_coords.lon.toFixed(4)}
+  </div>`, { className: '', opacity: 1 }).addTo(map);
+}
+
+// === Marqueur du point de sortie de zone ===
+if (DATA.exit_info) {
+  const exitCentroid = DATA.centroids[DATA.exit_info.exit_centroid_idx];
+  
+  // Cercle rouge pour marquer la sortie
+  L.circleMarker([exitCentroid.lat, exitCentroid.lon], {
+    radius: 18,
+    fillColor: 'transparent',
+    color: '#ff4d6d',
+    weight: 4,
+    fillOpacity: 0
+  }).addTo(map);
+  
+  // Label "SORTIE"
+  L.marker([exitCentroid.lat, exitCentroid.lon], {
+    icon: L.divIcon({
+      html: `<div style="background:#ff4d6d;color:white;padding:2px 8px;font-size:10px;font-weight:bold;border-radius:2px;white-space:nowrap;transform:translateY(-25px);">🚨 SORTIE</div>`,
+      className: '', iconSize: null, iconAnchor: [25, 0]
+    })
+  }).addTo(map);
+}
+
+// === Point de sortie PRÉDIT ===
+if (DATA.predicted_exit) {
+  const pred = DATA.predicted_exit;
+  
+  // Ligne de projection (du dernier méta-centroïde au point prédit)
+  const lastMeta = DATA.meta_centroids[DATA.meta_centroids.length - 1];
+  L.polyline([[lastMeta.lat, lastMeta.lon], [pred.exit_lat, pred.exit_lon]], {
+    color: '#ffea00',
+    weight: 3,
+    opacity: 0.8,
+    dashArray: '6 4'
+  }).addTo(map);
+  
+  // Cercle jaune au point de sortie prédit
+  L.circleMarker([pred.exit_lat, pred.exit_lon], {
+    radius: 12,
+    fillColor: '#ffea00',
+    color: '#ffffff',
+    weight: 3,
+    fillOpacity: 0.9
+  }).bindTooltip(`<div class="custom-tooltip">
+    <b style="color:#ffea00">🔮 SORTIE PRÉDITE</b><br>
+    Dans ~${pred.time_to_exit_min} min<br>
+    📍 ${pred.exit_lat}, ${pred.exit_lon}<br>
+    Distance : ${pred.exit_distance_km} km de l'aéroport
+  </div>`, { className: '', opacity: 1 }).addTo(map);
+  
+  // Label "PRÉDIT"
+  L.marker([pred.exit_lat, pred.exit_lon], {
+    icon: L.divIcon({
+      html: `<div style="background:#ffea00;color:#0a0c0f;padding:3px 10px;font-size:10px;font-weight:bold;border-radius:2px;white-space:nowrap;transform:translateY(-28px);">🔮 ~${pred.time_to_exit_min} min</div>`,
+      className: '', iconSize: null, iconAnchor: [35, 0]
+    })
+  }).addTo(map);
+}
+
+// Colorer les centroïdes selon inside/outside
+DATA.centroids.forEach((c, i) => {
+  if (c.dist_to_airport !== undefined) {
+    const isInside = c.inside_radius;
+    const borderColor = isInside ? '#00e5ff' : '#ff4d6d';
+    L.circleMarker([c.lat, c.lon], {
+      radius: 3,
+      fillColor: borderColor,
+      color: borderColor,
+      weight: 1,
+      fillOpacity: 0.3
+    }).addTo(map);
+  }
+});
+
+// Ajuster la vue pour inclure l'aéroport
+let bounds = L.latLngBounds(DATA.centroids.map(c => [c.lat, c.lon]));
+if (DATA.airport_coords) {
+  bounds.extend([DATA.airport_coords.lat, DATA.airport_coords.lon]);
+}
+map.fitBounds(bounds.pad(0.15));
+</script>
+</body>
+</html>

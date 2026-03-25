@@ -15,7 +15,7 @@ GAP_MINUTES    = 30
 MIN_LIGHTNINGS = 3  # Si orages < N éclairs => on l'ignore
 
 def load_data(path: str) -> pd.DataFrame:
-    df = pd.read_csv(path, parse_dates=["date"])
+    df = pd.read_csv(path, parse_dates=["date"], sep=";")
     df = df.sort_values(["airport", "date"]).reset_index(drop=True)
     return df
 
