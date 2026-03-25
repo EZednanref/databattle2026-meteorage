@@ -1332,12 +1332,13 @@ def generate_html(analysis: dict, output_path: Path) -> None:
 def generate_summary_html(all_analyses: list, output_path: Path) -> None:
   """Génère une page HTML résumant tous les orages analysés."""
 
-  # Filtrer les orages sans informations utiles (vitesse nulle ou pas de RANSAC)
+  # Filtrer les orages sans informations utiles (vitesse nulle, pas de RANSAC, ou pas de prédiction)
   valid_analyses = [
       a for a in all_analyses
       if a.get('global_speed_kmh', 0) > 0
       and a.get('ransac') is not None
       and a['ransac'].get('inlier_ratio', 0) > 0
+      and a.get('predicted_exit') is not None
   ]
 
   # Trier par ville puis par confiance RANSAC décroissante
