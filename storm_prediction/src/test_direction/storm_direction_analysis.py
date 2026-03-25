@@ -888,8 +888,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
   <div class="stat highlight">Distance : <span>{global_distance_km} km</span></div>
   <div class="stat highlight">⚡ Direction : <span>{global_speed_kmh} km/h → {global_direction}</span></div>
   <div class="stat">🧱 RANSAC : <span>{ransac_status}</span></div>
-  <div class="stat trend">📊 Tendance : <span>{trend_label}</span></div>
-  <div class="stat exit">🚨 Sortie 30km : <span>{exit_status}</span></div>
   <div class="stat prediction">🔮 Prédiction : <span>{prediction_status}</span></div>
 </header>
 
@@ -906,12 +904,6 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
     <strong>Azimut</strong> {azimuth_start}° → {azimuth_end}°<br>
     <span class="trend-value">{azimuth_slope_display}</span>
     <span class="r2">(R² = {azimuth_r2})</span>
-  </div>
-  <div style="margin-top:12px;">
-    <strong>Confiance</strong> {confidence_pct}%
-    <div class="confidence-bar">
-      <div class="fill" style="width:{confidence_pct}%;background:{confidence_color};"></div>
-    </div>
   </div>
 </div>
 
@@ -1366,52 +1358,31 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
       pred_text = "—"
       pred_color = "#4a5568"
 
-    trends = a.get('trends')
-    if trends:
-      trend_label = trends['trend_label']
-      confidence = trends['confidence']
-      confidence_pct = int(confidence * 100)
-
-      if trend_label == "S'éloigne":
-        trend_color = "#ff4d6d"
-      elif trend_label == "Se rapproche":
-        trend_color = "#69f0ae"
-      else:
-        trend_color = "#4a5568"
-
-      if confidence >= 0.5:
-        conf_color = "#69f0ae"
-      elif confidence >= 0.3:
-        conf_color = "#ffea00"
-      else:
-        conf_color = "#ff4d6d"
-    else:
-      trend_label = "—"
-      trend_color = "#4a5568"
-      confidence_pct = 0
-      conf_color = "#4a5568"
-
-    # Colonne RANSAC
+    # Colonnes RANSAC
     ransac = a.get('ransac')
     if ransac:
       r_inliers = int(ransac.get('inlier_ratio', 0) * 100)
       r_conf    = int(ransac.get('confidence', 0) * 100)
       r_azimut  = int(ransac.get('r2_azimut', 0) * 100)
-      r_method  = ransac.get('method', 'ransac').upper()
       if r_inliers >= 80:
-        r_color = "#69f0ae"
-        r_badge = "🟢"
+        r_color = "#69f0ae"; r_badge = "🟢"
       elif r_inliers >= 60:
-        r_color = "#ffea00"
-        r_badge = "🟡"
+        r_color = "#ffea00"; r_badge = "🟡"
       else:
-        r_color = "#ff4d6d"
-        r_badge = "🔴"
-      ransac_text = f"{r_badge} {r_inliers}% inliers · conf {r_conf}% · az R²{r_azimut}%"
+        r_color = "#ff4d6d"; r_badge = "🔴"
+      r_conf_color = "#69f0ae" if r_conf  >= 70 else ("#ffea00" if r_conf  >= 40 else "#ff4d6d")
+      r_az_color   = "#69f0ae" if r_azimut >= 70 else ("#ffea00" if r_azimut >= 40 else "#ff4d6d")
+      inliers_text = f"{r_badge} {r_inliers}%"
+      conf_text    = f"{r_conf}%"
+      az_text      = f"{r_azimut}%"
     else:
-      r_inliers = 0
-      r_color   = "#4a5568"
-      ransac_text = "—"
+      r_inliers    = 0
+      r_color      = "#4a5568"
+      r_conf_color = "#4a5568"
+      r_az_color   = "#4a5568"
+      inliers_text = "—"
+      conf_text    = "—"
+      az_text      = "—"
 
     rows_html += f'''\
     <tr onclick="window.location='{a['storm_id']}.html'" style="cursor:pointer;" data-ransac="{r_inliers}">\
@@ -1423,10 +1394,9 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
       <td>{a['global_distance_km']}</td>\
       <td style="color:#b2ff59;font-weight:bold;">{a['global_speed_kmh']} km/h</td>\
       <td style="color:#00e5ff;font-weight:bold;">{a['global_direction']}</td>\
-      <td style="color:{trend_color};font-weight:bold;">{trend_label}</td>\
-      <td style="color:{conf_color};font-weight:bold;">{confidence_pct}%</td>\
-      <td style="color:{r_color};font-size:11px;">{ransac_text}</td>\
-      <td style="color:{exit_color};font-weight:bold;">{exit_text}</td>\
+      <td style="color:{r_color};font-weight:bold;">{inliers_text}</td>\
+      <td style="color:{r_conf_color};font-weight:bold;">{conf_text}</td>\
+      <td style="color:{r_az_color};">{az_text}</td>\
       <td style="color:{pred_color};font-weight:bold;">{pred_text}</td>\
     </tr>\
     '''
@@ -1468,11 +1438,7 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
 <div class="stats">
   <div>Orages analysés : <span>{len(all_analyses)}</span></div>
   <div>Affichage : <span>{len(displayed_analyses)}</span></div>
-  <div>Vitesse max : <span>{max(a['global_speed_kmh'] for a in all_analyses):.1f} km/h</span></div>
-  <div>Distance max : <span>{max(a['global_distance_km'] for a in all_analyses):.1f} km</span></div>
   <div class="ransac">🧱 RANSAC ≥80% inliers : <span>{ransac_good}</span></div>
-  <div class="confidence">📊 Confiance ≥50% : <span>{high_confidence}</span></div>
-  <div class="exit">🚨 Sorties 30km : <span>{exits_count}</span></div>
   <div class="prediction">🔮 Prédictions : <span>{predictions_count}</span></div>
 </div>
 <p style="color:#4a5568;font-size:12px;margin-bottom:16px;">Cliquez sur un en-tête pour trier · Cliquez sur une ligne pour ouvrir la carte</p>
@@ -1486,10 +1452,9 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
   <th>Distance (km)</th>
   <th>Vitesse</th>
   <th>Direction</th>
-  <th>📊 Tendance</th>
-  <th>Confiance</th>
-  <th>🧱 RANSAC</th>
-  <th>🚨 Sortie 30km</th>
+  <th>🧱 Inliers</th>
+  <th>🎯 Confiance</th>
+  <th>📐 az R²</th>
   <th>🔮 Prédiction</th>
   </tr></thead>
   <tbody>
@@ -1541,6 +1506,8 @@ def main():
     parser.add_argument("--min_duration", type=float, default=MIN_DURATION_MINUTES, help="Durée minimale (min)")
     parser.add_argument("--output", type=str, default=str(OUTPUT_DIR), help="Dossier de sortie")
     parser.add_argument("--limit", type=int, default=None, help="Limiter le nombre d'orages analysés")
+    parser.add_argument("--airport", type=str, default=None, help="Filtrer par aéroport (ex: Ajaccio)")
+    parser.add_argument("--limit_per_airport", type=int, default=None, help="Prendre N orages par aéroport")
     args = parser.parse_args()
     
     output_dir = Path(args.output)
@@ -1562,7 +1529,26 @@ def main():
     
     if args.storm_id:
         storm_ids = [args.storm_id]
-    
+
+    if args.airport:
+        airport_storms = df[df['airport'] == args.airport]['storm_id'].dropna().unique().tolist()
+        storm_ids = [s for s in storm_ids if s in airport_storms]
+        print(f"🏙️  Filtre aéroport '{args.airport}' : {len(storm_ids)} orages")
+
+    if args.limit_per_airport:
+        storm_to_airport = df.dropna(subset=['storm_id']).groupby('storm_id')['airport'].first().to_dict()
+        per_airport: dict = {}
+        selected = []
+        for sid in storm_ids:
+            ap = storm_to_airport.get(sid, 'unknown')
+            if per_airport.get(ap, 0) < args.limit_per_airport:
+                selected.append(sid)
+                per_airport[ap] = per_airport.get(ap, 0) + 1
+        storm_ids = selected
+        print(f"🏙️  Limite par aéroport ({args.limit_per_airport}) : {len(storm_ids)} orages au total")
+        for ap, n in sorted(per_airport.items()):
+            print(f"   {ap}: {n}")
+
     if args.limit:
         storm_ids = storm_ids[:args.limit]
     
