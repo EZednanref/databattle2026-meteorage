@@ -879,22 +879,22 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 <body>
 
 <header>
-  <h1>⚡ {storm_id}</h1>
+  <h1>{storm_id}</h1>
   <div class="stat">Aéroport : <span>{airport}</span></div>
   <div class="stat">Durée : <span>{duration_min} min</span></div>
   <div class="stat">Éclairs : <span>{n_strikes}</span></div>
   <div class="stat">Barycentres (2min) : <span>{n_centroids}</span></div>
   <div class="stat">Méta-points : <span>{n_meta}</span></div>
   <div class="stat highlight">Distance : <span>{global_distance_km} km</span></div>
-  <div class="stat highlight">⚡ Direction : <span>{global_speed_kmh} km/h → {global_direction}</span></div>
-  <div class="stat">🧱 RANSAC : <span>{ransac_status}</span></div>
-  <div class="stat prediction">🔮 Prédiction : <span>{prediction_status}</span></div>
+  <div class="stat highlight">Direction : <span>{global_speed_kmh} km/h → {global_direction}</span></div>
+  <div class="stat">RANSAC : <span>{ransac_status}</span></div>
+  <div class="stat prediction">Prédiction : <span>{prediction_status}</span></div>
 </header>
 
 <div id="map"></div>
 
 <div class="trends-box" id="trends-box" style="display:{trends_box_display};">
-  <h3>📊 Analyse des tendances</h3>
+  <h3>Analyse des tendances</h3>
   <div style="margin-bottom:10px;">
     <strong>Distance</strong> {dist_start} → {dist_end} km<br>
     <span class="trend-value {dist_trend_class}">{dist_slope_display}</span>
@@ -917,7 +917,7 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 </div>
 
 <div class="exit-box" id="exit-box" style="display:{exit_box_display};">
-  <h3>🚨 Sortie zone {radius_km}km</h3>
+  <h3>Sortie zone {radius_km}km</h3>
   <div class="big">{exit_time_display}</div>
   <div style="margin-top:8px;color:var(--muted);">
     Après {exit_time_min} min<br>
@@ -927,11 +927,11 @@ HTML_TEMPLATE = '''<!DOCTYPE html>
 </div>
 
 <div class="prediction-box" id="prediction-box" style="display:{prediction_box_display};">
-  <h3>🔮 Prédiction de sortie</h3>
+  <h3>Prédiction de sortie</h3>
   <div class="big">Dans ~{predicted_time_min} min</div>
   <div style="margin-top:8px;color:var(--muted);">
     Position estimée :<br>
-    📍 {predicted_lat}, {predicted_lon}<br>
+    {predicted_lat}, {predicted_lon}<br>
     Basé sur vitesse {global_speed_kmh} km/h → {global_direction}
   </div>
 </div>
@@ -956,7 +956,7 @@ DATA.centroids.forEach((c, i) => {{
   const nInliers = (c.n_inliers !== undefined) ? c.n_inliers : c.n;
   const nOutliers = c.n - nInliers;
   const outline = inlierFrac >= 0.8 ? '#69f0ae' : (inlierFrac >= 0.5 ? '#ffea00' : '#ff4d6d');
-  const inlierBadge = inlierFrac >= 0.8 ? '🟢' : (inlierFrac >= 0.5 ? '🟡' : '🔴');
+  const inlierBadge = '';
   L.circleMarker([c.lat, c.lon], {{
     radius: 5, fillColor: color, color: outline, weight: 2, fillOpacity: 0.7
   }}).bindTooltip(`<div class="custom-tooltip">
@@ -964,7 +964,7 @@ DATA.centroids.forEach((c, i) => {{
     ${{c.ts}}<br>
     Éclairs: <b>${{nInliers}}</b>/${{c.n}} conservés (${{Math.round(inlierFrac*100)}}%)
     ${{nOutliers > 0 ? ' · <span style="color:#ff4d6d">' + nOutliers + ' outlier(s) rejetés</span>' : ''}}<br>
-    ${{c.azimuth_mean !== null ? '🧭 Azimut: ' + c.azimuth_mean.toFixed(1) + '°<br>' : ''}}
+    ${{c.azimuth_mean !== null ? 'Azimut: ' + c.azimuth_mean.toFixed(1) + '°<br>' : ''}}
     ${{c.dist_from_prev ? 'Dist: ' + c.dist_from_prev.toFixed(2) + ' km' : ''}}
     ${{c.speed_kmh ? ' · ' + c.speed_kmh.toFixed(1) + ' km/h' : ''}}
   </div>`, {{ className: '', opacity: 1 }}).addTo(map);
@@ -987,7 +987,7 @@ DATA.meta_centroids.forEach((mc, i) => {{
     ${{mc.ts}}<br>
     Groupes ${{mc.group_range[0]}}→${{mc.group_range[1]}}<br>
     Éclairs: ${{mc.n}}<br>
-    ${{mc.azimuth_mean !== null ? '🧭 Azimut: ' + mc.azimuth_mean.toFixed(1) + '°<br>' : ''}}
+    ${{mc.azimuth_mean !== null ? 'Azimut: ' + mc.azimuth_mean.toFixed(1) + '°<br>' : ''}}
     ${{mc.dist_from_prev ? 'Dist: ' + mc.dist_from_prev.toFixed(2) + ' km · ' + mc.speed_kmh.toFixed(1) + ' km/h' : ''}}
   </div>`, {{ className: '', opacity: 1 }}).addTo(map);
 
@@ -1091,7 +1091,7 @@ if (DATA.exit_info) {{
   // Label "SORTIE"
   L.marker([exitCentroid.lat, exitCentroid.lon], {{
     icon: L.divIcon({{
-      html: `<div style="background:#ff4d6d;color:white;padding:2px 8px;font-size:10px;font-weight:bold;border-radius:2px;white-space:nowrap;transform:translateY(-25px);">🚨 SORTIE</div>`,
+      html: `<div style="background:#ff4d6d;color:white;padding:2px 8px;font-size:10px;font-weight:bold;border-radius:2px;white-space:nowrap;transform:translateY(-25px);">SORTIE</div>`,
       className: '', iconSize: null, iconAnchor: [25, 0]
     }})
   }}).addTo(map);
@@ -1121,16 +1121,16 @@ if (DATA.predicted_exit) {{
     weight: 3,
     fillOpacity: 0.9
   }}).bindTooltip(`<div class="custom-tooltip">
-    <b style="color:#ffea00">🔮 SORTIE PRÉDITE</b><br>
+    <b style="color:#ffea00">SORTIE PRÉDITE</b><br>
     Dans ~${{pred.time_to_exit_min}} min<br>
-    📍 ${{pred.exit_lat}}, ${{pred.exit_lon}}<br>
+    ${{pred.exit_lat}}, ${{pred.exit_lon}}<br>
     Distance : ${{pred.exit_distance_km}} km de l'aéroport
   </div>`, {{ className: '', opacity: 1 }}).addTo(map);
   
   // Label "PRÉDIT"
   L.marker([pred.exit_lat, pred.exit_lon], {{
     icon: L.divIcon({{
-      html: `<div style="background:#ffea00;color:#0a0c0f;padding:3px 10px;font-size:10px;font-weight:bold;border-radius:2px;white-space:nowrap;transform:translateY(-28px);">🔮 ~${{pred.time_to_exit_min}} min</div>`,
+      html: `<div style="background:#ffea00;color:#0a0c0f;padding:3px 10px;font-size:10px;font-weight:bold;border-radius:2px;white-space:nowrap;transform:translateY(-28px);">~${{pred.time_to_exit_min}} min</div>`,
       className: '', iconSize: null, iconAnchor: [35, 0]
     }})
   }}).addTo(map);
@@ -1378,14 +1378,14 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
       r_conf    = int(ransac.get('confidence', 0) * 100)
       r_azimut  = int(ransac.get('r2_azimut', 0) * 100)
       if r_inliers >= 80:
-        r_color = "#69f0ae"; r_badge = "🟢"
+        r_color = "#69f0ae"; r_badge = ""
       elif r_inliers >= 60:
-        r_color = "#ffea00"; r_badge = "🟡"
+        r_color = "#ffea00"; r_badge = ""
       else:
-        r_color = "#ff4d6d"; r_badge = "🔴"
+        r_color = "#ff4d6d"; r_badge = ""
       r_conf_color = "#69f0ae" if r_conf  >= 70 else ("#ffea00" if r_conf  >= 40 else "#ff4d6d")
       r_az_color   = "#69f0ae" if r_azimut >= 70 else ("#ffea00" if r_azimut >= 40 else "#ff4d6d")
-      inliers_text = f"{r_badge} {r_inliers}%"
+      inliers_text = f"{r_inliers}%"
       conf_text    = f"{r_conf}%"
       az_text      = f"{r_azimut}%"
     else:
@@ -1447,12 +1447,12 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
 </style>
 </head>
 <body>
-<h1>⚡ Storm Direction Analysis</h1>
+<h1>Storm Direction Analysis</h1>
 <div class="stats">
   <div>Orages analysés : <span>{len(all_analyses)}</span></div>
   <div>Affichage : <span>{len(displayed_analyses)}</span></div>
-  <div class="ransac">🧱 RANSAC ≥80% inliers : <span>{ransac_good}</span></div>
-  <div class="prediction">🔮 Prédictions : <span>{predictions_count}</span></div>
+  <div class="ransac">RANSAC ≥80% inliers : <span>{ransac_good}</span></div>
+  <div class="prediction">Prédictions : <span>{predictions_count}</span></div>
 </div>
 <p style="color:#4a5568;font-size:12px;margin-bottom:16px;">Cliquez sur un en-tête pour trier · Cliquez sur une ligne pour ouvrir la carte</p>
 <table id="tbl">
@@ -1465,10 +1465,10 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
   <th>Distance (km)</th>
   <th>Vitesse</th>
   <th>Direction</th>
-  <th>🧱 Inliers</th>
-  <th>🎯 Confiance</th>
-  <th>📐 az R²</th>
-  <th>🔮 Prédiction</th>
+  <th>Inliers</th>
+  <th>Confiance</th>
+  <th>az R²</th>
+  <th>Prédiction</th>
   </tr></thead>
   <tbody>
   {rows_html}
@@ -1489,8 +1489,8 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
       const tbody = tbl.querySelector('tbody');
       const rows = Array.from(tbody.querySelectorAll('tr'));
       rows.sort((a, b) => {{
-        const va = a.cells[ci].textContent.replace(/[🟢🟡🔴✅⚠️🔮🚨]/gu,'').trim();
-        const vb = b.cells[ci].textContent.replace(/[🟢🟡🔴✅⚠️🔮🚨]/gu,'').trim();
+        const va = a.cells[ci].textContent.trim();
+        const vb = b.cells[ci].textContent.trim();
         const na = parseFloat(va); const nb = parseFloat(vb);
         const cmp = (!isNaN(na) && !isNaN(nb)) ? na - nb : va.localeCompare(vb, 'fr');
         return asc ? cmp : -cmp;
@@ -1505,7 +1505,7 @@ def generate_summary_html(all_analyses: list, output_path: Path) -> None:
 '''
 
   output_path.write_text(html, encoding='utf-8')
-  print(f"\n✅ Résumé : {output_path}")
+  print(f"\nResume : {output_path}")
 
 
 # ============================================================================
@@ -1546,7 +1546,7 @@ def main():
     if args.airport:
         airport_storms = df[df['airport'] == args.airport]['storm_id'].dropna().unique().tolist()
         storm_ids = [s for s in storm_ids if s in airport_storms]
-        print(f"🏙️  Filtre aéroport '{args.airport}' : {len(storm_ids)} orages")
+        print(f"Filtre aeroport '{args.airport}' : {len(storm_ids)} orages")
 
     if args.limit_per_airport:
         storm_to_airport = df.dropna(subset=['storm_id']).groupby('storm_id')['airport'].first().to_dict()
@@ -1558,14 +1558,14 @@ def main():
                 selected.append(sid)
                 per_airport[ap] = per_airport.get(ap, 0) + 1
         storm_ids = selected
-        print(f"🏙️  Limite par aéroport ({args.limit_per_airport}) : {len(storm_ids)} orages au total")
+        print(f"Limite par aeroport ({args.limit_per_airport}) : {len(storm_ids)} orages au total")
         for ap, n in sorted(per_airport.items()):
             print(f"   {ap}: {n}")
 
     if args.limit:
         storm_ids = storm_ids[:args.limit]
     
-    print(f"⚡ {len(storm_ids)} orages à analyser (durée >= {args.min_duration} min)\n")
+    print(f"{len(storm_ids)} orages a analyser (duree >= {args.min_duration} min)\n")
     
     all_analyses = []
     
@@ -1598,9 +1598,9 @@ def main():
         json_path = output_dir / "storm_directions.json"
         with open(json_path, 'w') as f:
             json.dump(all_analyses, f, indent=2, default=str)
-        print(f"📊 JSON : {json_path}")
+        print(f"JSON : {json_path}")
     
-    print(f"\n🎉 Terminé ! {len(all_analyses)} orages analysés.")
+    print(f"\nTermine ! {len(all_analyses)} orages analyses.")
     print(f"   Ouvre {output_dir / 'index.html'} pour voir le résumé.")
 
 
