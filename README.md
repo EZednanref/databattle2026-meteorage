@@ -152,7 +152,7 @@ storm_prediction/
 │       └── output/
 │           └── [fichiers HTML d'analyse de direction]
 ├── features_analysis.py
-├── run_pipeline.ipynb
+└── run_pipeline.ipynb
 ```
 
 ---
