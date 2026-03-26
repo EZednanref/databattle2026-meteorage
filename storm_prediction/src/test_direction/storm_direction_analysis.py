@@ -1011,7 +1011,7 @@ if (DATA.meta_centroids.length > 1) {{
   const angle = Math.atan2(last.lon - prev.lon, last.lat - prev.lat) * 180 / Math.PI;
   L.marker([last.lat, last.lon], {{
     icon: L.divIcon({{
-      html: `<div style="transform:rotate(${{angle-90}}deg);font-size:28px;color:#ff4081;">➤</div>`,
+      html: `<div style="transform:rotate(${{angle-90}}deg);font-size:28px;color:#ff4081;">&#9658;</div>`,
       className: '', iconSize: [28,28], iconAnchor: [14,14]
     }})
   }}).addTo(map);
@@ -1066,7 +1066,7 @@ if (DATA.airport_coords) {{
   // Marqueur de l'aéroport
   L.marker([DATA.airport_coords.lat, DATA.airport_coords.lon], {{
     icon: L.divIcon({{
-      html: `<div style="font-size:20px;">✈️</div>`,
+      html: `<div style="font-size:14px;font-weight:bold;color:#fff;">[AP]</div>`,
       className: '', iconSize: [20,20], iconAnchor: [10,10]
     }})
   }}).bindTooltip(`<div class="custom-tooltip">
@@ -1526,7 +1526,7 @@ def main():
     output_dir = Path(args.output)
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    print(f"📂 Chargement de {args.csv}...")
+    print(f"Chargement de {args.csv}...")
     df = pd.read_csv(args.csv, parse_dates=['date'])
     
     # Filtrer les orages avec durée > min_duration
@@ -1573,13 +1573,13 @@ def main():
         df_storm = df[df['storm_id'] == storm_id]
         
         if len(df_storm) < 3:
-            print(f"  ⏭️  {storm_id}: pas assez d'éclairs ({len(df_storm)})")
+            print(f"  [skip] {storm_id}: pas assez d'eclairs ({len(df_storm)})")
             continue
         
         analysis = analyze_storm(df_storm, storm_id)
         
         if analysis is None or len(analysis['centroids']) < 2:
-            print(f"  ⏭️  {storm_id}: pas assez de centroïdes")
+            print(f"  [skip] {storm_id}: pas assez de centroides")
             continue
         
         all_analyses.append(analysis)
@@ -1588,7 +1588,7 @@ def main():
         html_path = output_dir / f"{storm_id}.html"
         generate_html(analysis, html_path)
         
-        print(f"  ✓ {storm_id}: {analysis['global_speed_kmh']} km/h → {analysis['global_direction']} ({analysis['global_distance_km']} km)")
+        print(f"  {storm_id}: {analysis['global_speed_kmh']} km/h -> {analysis['global_direction']} ({analysis['global_distance_km']} km)")
     
     # Générer résumé
     if all_analyses:

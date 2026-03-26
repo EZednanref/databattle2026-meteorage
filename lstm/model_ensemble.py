@@ -159,11 +159,11 @@ class EnsembleModel:
         """Map probability to a human-readable operational advisory."""
         t = CFG.thresholds
         if proba >= t.allclear_threshold:
-            return "🟢 All-clear recommended"
+            return "[OK] All-clear recommended"
         elif proba >= t.watch_threshold:
-            return "🟡 Storm possibly ending — monitor closely"
+            return "[WATCH] Storm possibly ending - monitor closely"
         else:
-            return "🔴 Storm active — alert maintained"
+            return "[ALERT] Storm active - alert maintained"
 
     # ------------------------------------------------------------------
     def save(self, path: str) -> None:
