@@ -16,6 +16,8 @@ Prédire la trajectoire, la localisation, l’heure.
 
 
 ## Solution proposée
+Pipeline temps réels de tracking d’orage + visualisation web interactive (storm_prediction/run_pipeline.ipynb)
+Modèle LightGBM de prédiction de fin d’orage.
 
 ## Stack technique
 
@@ -29,7 +31,7 @@ Prédire la trajectoire, la localisation, l’heure.
 - **scikit-learn** (≥ 1.3) — Utilitaires ML (prétraitement, métriques, calibration)
 
 ### Frameworks Machine Learning et Deep Learning
-- **PyTorch** (≥ 2.0) — Réseaux de neurones LSTM
+- **PyTorch** (≥ 2.0) 
 - **LightGBM** (≥ 4.0) — Classifieur par boosting de gradient (modèle principal)
 - **XGBoost** — Boosting de gradient (analyse de features et benchmarking)
 - **Optuna** — Optimisation d'hyperparamètres (recherche bayésienne)
@@ -56,11 +58,11 @@ Prédire la trajectoire, la localisation, l’heure.
 - **Git** — Contrôle de version
 
 ### Architecture du Projet
-- **Dossier LSTM** : Ensemble deep learning (LSTM + LightGBM avec calibration de probabilités)
+- **Dossier DEV** : Ensemble deep learning (LightGBM avec calibration de probabilités)
 - **Dossier storm_prediction** : Approche multi-facettes (benchmarking, analyse de survie, analyse de features, prédiction de trajectoire temporelle)
 - Workflow principal : Prétraitement des données → Ingénierie des features → Entraînement des modèles → Évaluation → Inférence en temps réel
 
-Toutes les dépendances sont spécifiées dans [lstm/requirements.txt](lstm/requirements.txt). Le module storm_prediction utilise des bibliothèques supplémentaires (XGBoost, Optuna, lifelines, imbalanced-learn) non listées là mais intégrées dans ses modules Python.
+Toutes les dépendances sont spécifiées dans [requirements.txt](requirements.txt). Le module storm_prediction utilise des bibliothèques supplémentaires (XGBoost, Optuna, lifelines, imbalanced-learn) non listées là mais intégrées dans ses modules Python.
 
 
 ## Installation et execution
@@ -81,95 +83,76 @@ source env/bin/activate  # Sur Windows: env\Scripts\activate
 
 #### Installer les dépendances
 ```bash
-pip install -r lstm/requirements.txt
+pip install -r requirements.txt
 ```
 
 ### Execution
-
-
-# Benchmark — Prédiction de fin d'orage (Étape 1)
-
-## Objectif
-
-À partir d'un historique d'éclairs sur un aéroport, prédire **la borne supérieure de fin d'orage** (ex: "l'orage sera terminé avant 17h30 avec 95% de confiance").
-
-Deux formulations sont benchmarkées en parallèle :
-
-| Formulation | Sortie | Modèles |
-|---|---|---|
-| **Binaire** | "L'orage se termine-t-il dans les X prochaines minutes ?" | LR, XGBoost, LightGBM, LSTM |
-| **Survival** | "Quelle est la probabilité que l'orage dure encore T minutes ?" | Weibull AFT, Cox PH |
-
----
-
-## Définition des labels
-
-**Règle de segmentation :** un orage = séquence d'éclairs sur un aéroport sans gap > 30 min.
+- Interface web intéractive de tracking d'orage : 
+Simplement éxecuter le note book :
 
 ```
-storm_id  start_time  end_time  duration_min  [features agrégées]
+storm_prediction/run_pipeline.ipynb**
 ```
 
-**Label binaire** (à paramétrer) : `1` si `duration_from_now <= T`, `0` sinon.  
-**Label survival** : `(duration_min, event=1)` — l'événement est toujours observé ici.
+- Lancer l'algorithme de prédiction de fin d'orage :
 
----
-
-## Feature Engineering
-
-Calculées par **fenêtre glissante** sur les N derniers éclairs de l'orage en cours :
-
-### Temporelles
-- `time_since_last_lightning` — signal clé pour la fin
-- `inter_lightning_gap_mean / max` sur fenêtre 5, 10, 20 éclairs
-- `lightning_rate_trend` — pente de la fréquence (décélération = signal fort)
-- `storm_age_min` — durée depuis le premier éclair
-
-### Spatiales
-- `dist_mean / dist_trend` — éloignement progressif du centre ?
-- `azimuth_std` — dispersion angulaire
-- `maxis_mean / trend` — évolution de la taille de la cellule orageuse
-
-### Physiques
-- `amplitude_mean / std / trend` — intensité et tendance
-- `icloud_ratio` — proportion de foudre nuage-nuage (↑ en fin d'orage)
-- `cloud_ground_ratio` — proportion nuage-sol
-
----
+```bash
+python dev/final_folder/predict.py
+```
 
 ## Structure du projet
 
 ```
-storm_end_prediction/
+storm_prediction/
 │
 ├── data/
-│   ├── raw/data.csv
-│   └── processed/
-│       ├── storms.csv          # segments d'orages labelisés
-│       └── features.csv        # features par fenêtre glissante
-│
+│   ├── raw/
+│   │   ├── data_with_storm_id.csv
+│   │   └── data.csv
+│   └── final_folder/
+│       ├── pipeline.ipynb
+│       ├── requirements.txt
+│       ├── feature_analysis/
+│       │   ├── feature_ranking.csv
+│       │   └── optimal_features.py
+│       ├── inference/
+│       │   ├── dataset_set.csv
+│       │   ├── predict.py
+│       │   ├── segment_storm.py
+│       │   ├── storms.csv
+│       │   └── train_temporal_trajectory.py
+│       ├── model_output/
+│       │   └── rapport_lgbm_trajectory.txt
+│       ├── preprocessing/
+│       │   └── segment_storm.py
+│       └── training/
+│           ├── data_enrichie_features.csv
+│           ├── lgbm.py
+│           └── train_temporal_trajectory.py
+├── output/
+│   └── feature_analysis/
+│       └── feature_ranking.csv
 ├── src/
+│   ├── benchmark/
+│   │   ├── benchmark.py
+│   │   ├── diag.py
+│   │   ├── lightbench.py
+│   │   ├── survival.py
+│   │   └── output/
+│   │       ├── benchmark/
+│   │       ├── lgbm/
+│   │       └── survival/
 │   ├── preprocessing/
-│   │   ├── segment_storms.py   # règle 30 min → storm_id
-│   │   └── build_features.py   # fenêtres glissantes → feature matrix
-│   │
-│   ├── models/
-│   │   ├── baseline_lr.py
-│   │   ├── xgboost_model.py
-│   │   ├── lightgbm_model.py
-│   │   ├── lstm_model.py
-│   │   └── survival_model.py   # lifelines : Weibull AFT + Cox PH
-│   │
-│   ├── evaluation/
-│   │   ├── metrics.py          # AUC, Brier score, calibration curve
-│   │   └── benchmark.py        # runner comparatif
-│   │
-│   └── config.py               # GAP_MINUTES=30, WINDOW_SIZES, T_horizon, etc.
-│
-├── notebooks/
-│   └── 01_EDA.ipynb
-│
-└── README.md
+│   │   ├── build_features.py
+│   │   └── segment_storm.py
+│   └── test_direction/
+│       ├── data.csv
+│       ├── storm_direction_analysis.py
+│       ├── test.html
+│       └── output/
+│           └── [fichiers HTML d'analyse de direction]
+├── features_analysis.py
+├── run_pipeline.ipynb
 ```
 
 ---
@@ -209,21 +192,8 @@ Ou **Walk-Forward Validation** si peu de données.
 pandas, numpy
 scikit-learn
 xgboost, lightgbm
-torch (LSTM)
+torch
 lifelines (survival)
 matplotlib, shap
 ```
-
----
-
-## Décision sur la formulation
-
-Recommandation : **commencer par la formulation survival** (Weibull AFT).
-
-- Modélise naturellement "le temps jusqu'à la fin"
-- Gère les orages encore en cours (données censurées) si besoin
-- Donne directement un percentile 95% → borne supérieure pour l'étape 2
-- Plus interprétable que LSTM pour un premier benchmark
-
-La formulation binaire reste utile comme **baseline rapide** et pour comparer la calibration.
 
