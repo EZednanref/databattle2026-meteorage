@@ -1,25 +1,90 @@
-![](./gif.gif)
+# Data Battle IA PAU 2026
+
+## Equipe
+- Nom de l'équipe : Zango le dozo
+- Membres :
+    - Kraus Antoine
+    - Oszust Jordi
+    - Champeyrol Matys
+    - Fritsch Lucas
+    - Malherbe Axel
+    - Fernandez Enzo
+    
+## Problématique
+Prédire la fin d’un orage 30 km autour d’un aéroport.
+Prédire la trajectoire, la localisation, l’heure.
 
 
+## Solution proposée
 
-# AVANT TOUT
+## Stack technique
 
-Va falloir faire un croisement de données.
-C'est à dire trouver des données open source à propos de la météo autour d'Ajaccio, Bastia, Biarritz, Nantes, Pise.
+### Langage de Programmation
+- **Python** (langage principal)
 
-Faire un script permettant d'enrichir les données en les croisant.
+### Frameworks et Bibliothèques de Base
+- **NumPy** (≥ 1.24) — Calculs numériques
+- **Pandas** (≥ 2.0) — Manipulation et analyse de données
+- **SciPy** (≥ 1.10) — Calculs scientifiques
+- **scikit-learn** (≥ 1.3) — Utilitaires ML (prétraitement, métriques, calibration)
 
-A l'aide de ces données enrichies, faire un benchmark de features, afin de cerner les plus impactantes pour la prédiction de fin d'orage.
+### Frameworks Machine Learning et Deep Learning
+- **PyTorch** (≥ 2.0) — Réseaux de neurones LSTM
+- **LightGBM** (≥ 4.0) — Classifieur par boosting de gradient (modèle principal)
+- **XGBoost** — Boosting de gradient (analyse de features et benchmarking)
+- **Optuna** — Optimisation d'hyperparamètres (recherche bayésienne)
 
-Sources possibles : 
+### Composants ML Avancés
+- **SHAP** (≥ 0.43) — Explicabilité des modèles et importance des features
+- **MAPIE** (≥ 0.7) — Intervalles de prédiction conformaux pour quantification d'incertitude
+- **lifelines** (≥ 0.27) — Analyse de survie (modèles Weibull AFT, Cox PH)
+- **imbalanced-learn** — SMOTE pour gérer le déséquilibre de classes dans les splits temporels
 
-- https://meteo.data.gouv.fr/datasets?category=climatologique-base
-- https://meteo.data.gouv.fr/datasets?category=climatologique-changement-climatique
-- https://meteo.data.gouv.fr/datasets?category=observations
+### Traitement de Données et I/O
+- **PyArrow** (≥ 12.0) — Support des fichiers Parquet
+- **fastparquet** (≥ 2023.4) — Moteur alternatif Parquet
+- **joblib** (≥ 1.3) — Traitement parallèle et sérialisation de modèles
+- **tqdm** — Barres de progression pour les boucles de traitement
+
+### Visualisation et Analyse
+- **Matplotlib** (≥ 3.7) — Graphiques et visualisations d'évaluation
+- **Seaborn** (≥ 0.12) — Visualisation statistique des données
+- HTML/JavaScript — Cartes interactives personnalisées pour l'analyse de direction des orages
+
+### Environnements de Développement
+- **Jupyter Notebooks** — Analyse interactive et pipelines (ex: run_pipeline.ipynb, pipeline.ipynb)
+- **Git** — Contrôle de version
+
+### Architecture du Projet
+- **Dossier LSTM** : Ensemble deep learning (LSTM + LightGBM avec calibration de probabilités)
+- **Dossier storm_prediction** : Approche multi-facettes (benchmarking, analyse de survie, analyse de features, prédiction de trajectoire temporelle)
+- Workflow principal : Prétraitement des données → Ingénierie des features → Entraînement des modèles → Évaluation → Inférence en temps réel
+
+Toutes les dépendances sont spécifiées dans [lstm/requirements.txt](lstm/requirements.txt). Le module storm_prediction utilise des bibliothèques supplémentaires (XGBoost, Optuna, lifelines, imbalanced-learn) non listées là mais intégrées dans ses modules Python.
 
 
+## Installation et execution
 
+### Prérequis
 
+#### Cloner le dépôt
+```bash
+git clone https://github.com/EZednanref/databattle2026-meteorage.git
+cd databattle2026-meteorage
+```
+
+#### Créer un environnement virtuel
+```bash
+python -m venv env
+source env/bin/activate  # Sur Windows: env\Scripts\activate
+```
+
+#### Installer les dépendances
+```bash
+pip install -r lstm/requirements.txt
+```
+
+### Execution
 
 
 # Benchmark — Prédiction de fin d'orage (Étape 1)
