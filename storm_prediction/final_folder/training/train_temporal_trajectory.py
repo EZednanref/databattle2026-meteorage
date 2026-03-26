@@ -1,15 +1,20 @@
 import os
 import numpy as np
 import pandas as pd
+import pickle
 from lightgbm import LGBMClassifier
+import matplotlib.pyplot as plt
 from sklearn.model_selection import GroupShuffleSplit
 from sklearn.metrics import (classification_report, roc_auc_score,
                              average_precision_score)
+from sklearn.metrics import precision_recall_curve, f1_score
+from sklearn.metrics import confusion_matrix
+from sklearn.metrics import precision_recall_curve
 from imblearn.over_sampling import SMOTE
 
-DATA_PATH    = "enrichi.csv"
-OUTPUT_DIR   = "model_output/"
-ENRICHED_CSV = "../output/data_enrichie_features.csv"
+DATA_PATH    = "data_train.csv"
+OUTPUT_DIR   = "../model_output/"
+ENRICHED_CSV = "data_enrichie_features.csv"
 TARGET_COL   = "is_last_lightning_cloud_ground"
 
 # Colonnes à exclure des features ML
@@ -170,9 +175,46 @@ def main():
     )
     lgbm.fit(X_train_res, y_train_res)
 
+    model_path = os.path.join(OUTPUT_DIR, "lgbm_model.pkl")
+    with open(model_path, "wb") as f:
+        pickle.dump(lgbm, f)
+    # from: docs.python.org/3/library/pickle.html
+    
     print("Évaluation...")
-    y_pred  = lgbm.predict(X_test)
+    THRESHOLD = 0.4
+
     y_proba = lgbm.predict_proba(X_test)[:, 1]
+
+    y_pred = (y_proba >= THRESHOLD).astype(int)
+    # from: scikit-learn.org/stable/modules/generated/sklearn.metrics.precision_recall_curve.html
+
+    precision, recall, thresholds = precision_recall_curve(y_test, y_proba)
+
+    specificities = []
+    f1_scores     = []
+    for t in thresholds:
+        y_t = (y_proba >= t).astype(int)
+        tn, fp, fn, tp = confusion_matrix(y_test, y_t).ravel()
+        specificities.append(tn / (tn + fp) if (tn + fp) > 0 else 0)
+        f1_scores.append(f1_score(y_test, y_t, zero_division=0))
+
+    fig, ax = plt.subplots(figsize=(10, 6))
+    ax.plot(thresholds, recall[:-1],  label="Recall",       color="steelblue")
+    ax.plot(thresholds, precision[:-1], label="Precision",  color="tomato",   linestyle="--")
+    ax.plot(thresholds, specificities,  label="Specificity", color="seagreen", linestyle="-.")
+    ax.plot(thresholds, f1_scores,      label="F1 Score",   color="darkorange", linestyle=":")
+    ax.axvline(THRESHOLD, color="gray", linestyle=":", label=f"Seuil {THRESHOLD}")
+    ax.set_xlabel("Seuil de confiance")
+    ax.set_ylabel("Score")
+    ax.set_title("Métriques vs seuil de confiance")
+    ax.legend()
+    ax.grid(True, alpha=0.3)
+    plt.tight_layout()
+
+    plot_path = os.path.join(OUTPUT_DIR, "recall_vs_threshold.png")
+    plt.savefig(plot_path, dpi=150)
+    plt.show()
+    print(f"→ {plot_path}")
     roc_auc       = roc_auc_score(y_test, y_proba)
     avg_precision = average_precision_score(y_test, y_proba)
     importances   = pd.Series(lgbm.feature_importances_, index=X.columns)
@@ -189,7 +231,7 @@ def main():
         f"ROC-AUC (test)            : {roc_auc:.4f}",
         f"Average Precision (test)  : {avg_precision:.4f}",
         "",
-        "--- Classification Report (seuil 0.5) ---",
+        "--- Classification Report (seuil 0.4) ---",
         classification_report(y_test, y_pred,
                               target_names=["cloud-to-cloud", "cloud-to-ground"]),
         "",
